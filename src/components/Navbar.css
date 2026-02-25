@@ -1,0 +1,203 @@
+/* ── Topbar ── */
+.topbar {
+  background: var(--primary);
+  color: var(--white);
+  font-size: 13px;
+  padding: 8px 0;
+  z-index: 9999;
+  position: relative;
+}
+.topbar-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.topbar-left {
+  display: flex;
+  gap: 20px;
+}
+.topbar-left span {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  opacity: 0.9;
+}
+.topbar-right {
+  display: flex;
+  gap: 14px;
+}
+.topbar-right a {
+  color: rgba(255,255,255,0.75);
+  font-size: 14px;
+  transition: color 0.2s ease;
+}
+.topbar-right a:hover { color: var(--white); }
+
+/* ── Navbar ── */
+.navbar {
+  position: sticky;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 9998;
+  background: var(--white);
+  border-bottom: 1px solid var(--border);
+  transition: box-shadow 0.3s ease;
+}
+.navbar.scrolled {
+  box-shadow: 0 2px 20px rgba(0,0,0,0.1);
+}
+.nav-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 64px;
+}
+
+.nav-logo { display: flex; align-items: center; gap: 8px; }
+.logo-text {
+  font-family: var(--font-h);
+  font-size: 24px;
+  font-weight: 800;
+  color: var(--dark);
+}
+.logo-accent { color: var(--primary); }
+
+/* Desktop links */
+.nav-links {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.nav-link {
+  background: none;
+  border: none;
+  font-family: var(--font-b);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--dark2);
+  padding: 8px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: color 0.2s ease, background 0.2s ease;
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.nav-link:hover { color: var(--primary); background: var(--bg-light); }
+
+.small-icon { font-size: 10px; }
+
+.nav-user { color: var(--primary) !important; }
+
+.nav-cta { margin-left: 8px; padding: 8px 22px; }
+
+/* Dropdown */
+.dropdown { position: relative; }
+
+.dropdown-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  box-shadow: var(--shadow-md);
+  min-width: 200px;
+  padding: 6px 0;
+  z-index: 1000;
+  animation: fadeInUp 0.18s ease both;
+}
+.dropdown-right { left: auto; right: 0; }
+
+.dropdown-menu li a,
+.dropdown-menu li button {
+  display: block;
+  width: 100%;
+  padding: 9px 18px;
+  font-size: 13px;
+  color: var(--dark2);
+  transition: background 0.15s ease, color 0.15s ease;
+  background: none;
+  border: none;
+  text-align: left;
+  cursor: pointer;
+  font-family: var(--font-b);
+}
+.dropdown-menu li a:hover,
+.dropdown-menu li button:hover {
+  background: var(--bg-light);
+  color: var(--primary);
+}
+.dropdown-header {
+  padding: 8px 18px 4px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 4px;
+}
+
+/* Hamburger */
+.hamburger {
+  display: none;
+  background: none;
+  border: none;
+  font-size: 22px;
+  color: var(--dark);
+  cursor: pointer;
+}
+
+/* Mobile menu */
+.mobile-menu {
+  background: var(--white);
+  border-top: 1px solid var(--border);
+  padding: 12px 20px 20px;
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  box-shadow: var(--shadow-md);
+  z-index: 9997;
+  max-height: 80vh;
+  overflow-y: auto;
+}
+.mobile-menu ul { display: flex; flex-direction: column; gap: 2px; }
+.mobile-menu li a,
+.mobile-menu li button {
+  display: block;
+  width: 100%;
+  padding: 10px 12px;
+  font-size: 14px;
+  color: var(--dark2);
+  font-weight: 500;
+  background: none;
+  border: none;
+  text-align: left;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: background 0.15s ease;
+}
+.mobile-menu li a:hover,
+.mobile-menu li button:hover { background: var(--bg-light); color: var(--primary); }
+.mobile-group-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--gray);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  padding: 12px 12px 4px;
+}
+.mobile-login-btn {
+  color: var(--primary) !important;
+  font-weight: 700 !important;
+}
+
+@media (max-width: 1024px) {
+  .nav-links { display: none; }
+  .hamburger { display: block; }
+  .topbar-left span:last-child { display: none; }
+}
+
+@media (max-width: 480px) {
+  .topbar { display: none; }
+}
