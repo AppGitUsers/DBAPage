@@ -1,16 +1,18 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import './Navbar.css'
 
 export default function Navbar() {
-  const [scrolled, setScrolled] = useState(false)
-  const [mobileOpen, setMobileOpen] = useState(false)
-  const [coursesOpen, setCoursesOpen] = useState(false)
-  const [studentsOpen, setStudentsOpen] = useState(false)
-  const { user, profile, signOut } = useAuth()
+  const [scrolled,      setScrolled]      = useState(false)
+  const [mobileOpen,    setMobileOpen]    = useState(false)
+  const [coursesOpen,   setCoursesOpen]   = useState(false)
+  const [studentsOpen,  setStudentsOpen]  = useState(false)
+  const [userMenuOpen,  setUserMenuOpen]  = useState(false) // ← dedicated state for user dropdown
+  const { user, profile, loading, signOut } = useAuth()
   const location = useLocation()
   const navigate = useNavigate()
+  const userMenuRef = useRef(null)
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 60)
@@ -21,7 +23,19 @@ export default function Navbar() {
   // Close mobile menu on route change
   useEffect(() => { setMobileOpen(false) }, [location])
 
+  // Close user menu when clicking outside
+  useEffect(() => {
+    const handler = (e) => {
+      if (userMenuRef.current && !userMenuRef.current.contains(e.target)) {
+        setUserMenuOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
   const handleSignOut = async () => {
+    setUserMenuOpen(false)
     await signOut()
     navigate('/')
   }
@@ -69,7 +83,8 @@ export default function Navbar() {
             <li><button className="nav-link" onClick={() => scrollTo('about')}>About</button></li>
 
             {/* Courses dropdown */}
-            <li className="dropdown"
+            <li
+              className="dropdown"
               onMouseEnter={() => setCoursesOpen(true)}
               onMouseLeave={() => setCoursesOpen(false)}
             >
@@ -90,7 +105,8 @@ export default function Navbar() {
             <li><Link to="/videos" className="nav-link">Videos</Link></li>
 
             {/* Students dropdown */}
-            <li className="dropdown"
+            <li
+              className="dropdown"
               onMouseEnter={() => setStudentsOpen(true)}
               onMouseLeave={() => setStudentsOpen(false)}
             >
@@ -109,34 +125,50 @@ export default function Navbar() {
 
             <li><button className="nav-link" onClick={() => scrollTo('contact')}>Contact</button></li>
 
-            {/* Auth area */}
-            {user && profile ? (
-              <li className="dropdown"
-                onMouseEnter={() => setCoursesOpen(false)}
-                onMouseLeave={() => {}}
-              >
-                <button className="nav-link nav-user">
-                  <i className="fas fa-user-circle" /> {profile.name?.split(' ')[0]}
-                </button>
-                <ul className="dropdown-menu dropdown-right">
-                  <li className="dropdown-header">
-                    <span className="badge badge-primary">{profile.course}</span>
-                  </li>
-                  <li><Link to="/dashboard">My Dashboard</Link></li>
-                  <li><button onClick={handleSignOut}>Sign Out</button></li>
-                </ul>
-              </li>
-            ) : (
-              <li>
-                <button className="btn btn-primary nav-cta" onClick={() => scrollTo('login')}>
-                  Login / Register
-                </button>
-              </li>
+            {/* Auth area — show nothing while loading, then correct state */}
+            {!loading && (
+              user && profile ? (
+                /* ── Logged-in user menu ── */
+                <li className="dropdown user-dropdown" ref={userMenuRef}>
+                  <button
+                    className="nav-link nav-user"
+                    onClick={() => setUserMenuOpen(o => !o)}
+                  >
+                    <i className="fas fa-user-circle" />
+                    {profile.name?.split(' ')[0]}
+                    <i className="fas fa-chevron-down small-icon" />
+                  </button>
+                  {userMenuOpen && (
+                    <ul className="dropdown-menu dropdown-right user-dropdown-menu">
+                      <li className="dropdown-header">
+                        <span className="badge badge-primary">{profile.course}</span>
+                      </li>
+                      <li>
+                        <Link to="/dashboard" onClick={() => setUserMenuOpen(false)}>
+                          <i className="fas fa-play-circle" /> My Dashboard
+                        </Link>
+                      </li>
+                      <li>
+                        <button onClick={handleSignOut}>
+                          <i className="fas fa-sign-out-alt" /> Sign Out
+                        </button>
+                      </li>
+                    </ul>
+                  )}
+                </li>
+              ) : (
+                /* ── Not logged in ── */
+                <li>
+                  <button className="btn btn-primary nav-cta" onClick={() => scrollTo('hero')}>
+                    Login / Register
+                  </button>
+                </li>
+              )
             )}
           </ul>
 
           {/* Mobile hamburger */}
-          <button className="hamburger" onClick={() => setMobileOpen(!mobileOpen)}>
+          <button className="hamburger" onClick={() => setMobileOpen(o => !o)}>
             <i className={`fas ${mobileOpen ? 'fa-times' : 'fa-bars'}`} />
           </button>
         </div>
@@ -160,10 +192,17 @@ export default function Navbar() {
               <li><Link to="/labs">Labs</Link></li>
               <li><Link to="/interview-questions">Interview Questions</Link></li>
               <li><button onClick={() => scrollTo('contact')}>Contact</button></li>
-              {user ? (
-                <li><button onClick={handleSignOut}>Sign Out</button></li>
+              {user && profile ? (
+                <>
+                  <li><Link to="/dashboard">My Dashboard</Link></li>
+                  <li><button onClick={handleSignOut}>Sign Out</button></li>
+                </>
               ) : (
-                <li><button onClick={() => scrollTo('login')} className="mobile-login-btn">Login / Register</button></li>
+                <li>
+                  <button onClick={() => scrollTo('hero')} className="mobile-login-btn">
+                    Login / Register
+                  </button>
+                </li>
               )}
             </ul>
           </div>

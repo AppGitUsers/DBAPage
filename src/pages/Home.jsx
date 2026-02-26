@@ -5,7 +5,6 @@ import { useAuth } from '../contexts/AuthContext'
 import AuthForms from '../components/AuthForms'
 import './Home.css'
 
-/* ── FAQ data ── */
 const FAQS = [
   { q: 'What is Oracle DBA training?', a: 'Our Oracle DBA training covers database installation, configuration, performance tuning, backup & recovery, security, and cloud solutions. Suitable for beginners and experienced professionals.' },
   { q: 'How are the sessions conducted?', a: 'Sessions are conducted online via video conferencing with live demonstrations, hands-on labs, and real-world scenarios. Recordings are provided for review.' },
@@ -15,16 +14,38 @@ const FAQS = [
   { q: 'What is the duration of each course?', a: 'Course duration varies: Oracle Developer (8 weeks), Oracle DBA (12 weeks), PostgreSQL Developer (8 weeks), PostgreSQL DBA (10 weeks).' },
 ]
 
-/* ── Testimonials ── */
 const TESTIMONIALS = [
-  { name: 'Saul Goodman', role: 'CEO & Founder', text: 'Proin iaculis purus consequat sem cure digni ssim donec porttitora entum suscipit rhoncus. Accusantium quam, ultricies eget id, aliquam eget nibh et. Maecen aliquam, risus at semper.', img: 'https://i.pravatar.cc/80?img=11' },
-  { name: 'Sara Wilsson', role: 'Designer', text: 'Export tempor illum tamen malis malis eram quae irure esse labore quem cillum quid cillum eram malis quorum velit fore eram velit sunt aliqua noster fugiat irure amet legam anim culpa.', img: 'https://i.pravatar.cc/80?img=25' },
-  { name: 'Jena Karlis', role: 'Store Owner', text: 'Enim nisi quem export duis labore cillum quae magna enim sint quorum nulla quem veniam duis minim tempor labore quem eram duis noster aute amet eram fore quis sint minim.', img: 'https://i.pravatar.cc/80?img=32' },
-  { name: 'Matt Brandon', role: 'Freelancer', text: 'Fugiat enim eram quae cillum dolore dolor amet nulla culpa multos export minim fugiat minim velit minim dolor enim duis veniam ipsum anim magna sunt elit fore quem dolore labore illum veniam.', img: 'https://i.pravatar.cc/80?img=55' },
-  { name: 'John Larson', role: 'Entrepreneur', text: 'Quis quorum aliqua sint quem legam fore sunt eram irure aliqua veniam tempor noster veniam enim culpa labore duis sunt culpa nulla illum cillum fugiat legam esse veniam culpa fore nisi.', img: 'https://i.pravatar.cc/80?img=61' },
+  {
+    name: 'Arjun Mehta',
+    role: 'Full Stack Development Student',
+    text: 'The structured video lessons and real-time projects helped me understand concepts clearly. The certification added real value to my resume, and I successfully secured an internship within 3 months of completing the course.',
+    img: 'https://i.pravatar.cc/80?img=12'
+  },
+  {
+    name: 'Priya Sharma',
+    role: 'UI/UX Design Student',
+    text: 'What I loved most was the practical assignments and portfolio guidance. The mentors were supportive, and the internship support gave me the confidence to apply for real design roles.',
+    img: 'https://i.pravatar.cc/80?img=24'
+  },
+  {
+    name: 'Rahul Verma',
+    role: 'Data Science Student',
+    text: 'The hands-on labs and real industry case studies made learning engaging and practical. The certification and career support sessions helped me crack my first job interview.',
+    img: 'https://i.pravatar.cc/80?img=33'
+  },
+  {
+    name: 'Sneha Iyer',
+    role: 'Backend Development Student',
+    text: 'Unlike other platforms, this course focused on real-world implementation. The internship opportunity after course completion was a game-changer for my career.',
+    img: 'https://i.pravatar.cc/80?img=47'
+  },
+  {
+    name: 'Karthik Reddy',
+    role: 'Cloud & DevOps Student',
+    text: 'The step-by-step learning path and live project experience helped me build strong technical confidence. The mentorship and placement guidance truly set this platform apart.',
+    img: 'https://i.pravatar.cc/80?img=58'
+  },
 ]
-
-/* ── Placeholder videos ── */
 const HOME_VIDEOS = [
   { id: 1, title: 'Truncate and Delete', desc: 'This video explains about truncate and delete statements in Oracle', thumb: 'https://img.youtube.com/vi/LXb3EKWsInQ/mqdefault.jpg', url: 'https://www.youtube.com/watch?v=LXb3EKWsInQ' },
   { id: 2, title: 'Truncate and Delete', desc: 'This video explains about truncate and delete statements in Oracle', thumb: 'https://img.youtube.com/vi/LXb3EKWsInQ/mqdefault.jpg', url: 'https://www.youtube.com/watch?v=LXb3EKWsInQ' },
@@ -73,17 +94,59 @@ function TestimonialSlider() {
   )
 }
 
+/* ── Auth panel shown in hero ───────────────────────────────────────────────
+   Rules:
+   - loading OR profileLoading  →  show skeleton (prevents flash of wrong state)
+   - user + profile             →  show Welcome Back
+   - no user                    →  show AuthForms
+────────────────────────────────────────────────────────────────────────────── */
+function HeroAuthPanel({ user, profile, loading, profileLoading }) {
+  // While auth or profile is resolving, show a neutral skeleton
+  // This prevents the 1-second flash of AuthForms before profile arrives
+  if (loading || (user && profileLoading)) {
+    return (
+      <div className="hero-auth-skeleton">
+        <div className="skeleton-line" style={{ width: '60%', height: 24, marginBottom: 12 }} />
+        <div className="skeleton-line" style={{ width: '80%', height: 14, marginBottom: 8 }} />
+        <div className="skeleton-line" style={{ width: '70%', height: 14, marginBottom: 24 }} />
+        <div className="skeleton-line" style={{ width: '100%', height: 44, borderRadius: 8 }} />
+      </div>
+    )
+  }
+
+  if (user && profile) {
+    return (
+      <div className="hero-logged-in">
+        <div className="hero-avatar">
+          <i className="fas fa-user-circle" />
+        </div>
+        <h3>Welcome back, {profile.name?.split(' ')[0]}!</h3>
+        <p>Enrolled in: <strong>{profile.course}</strong></p>
+        {profile.approved ? (
+          <Link to="/dashboard" className="btn btn-primary" style={{ width: '100%', marginTop: 16 }}>
+            <i className="fas fa-play" /> Go to My Videos
+          </Link>
+        ) : (
+          <div className="alert alert-warning" style={{ marginTop: 16 }}>
+            <i className="fas fa-clock" />
+            Your account is pending admin approval. You'll receive access once approved.
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  return <AuthForms />
+}
+
 export default function Home() {
-  const { user, profile } = useAuth()
-  const [contactForm, setContactForm] = useState({ name: '', email: '', subject: '', message: '' })
+  const { user, profile, loading, profileLoading } = useAuth()
+  const [contactForm,   setContactForm]   = useState({ name: '', email: '',contact:'', subject: '', message: '' })
   const [contactStatus, setContactStatus] = useState(null)
 
-  // Back to top
   useEffect(() => {
     const btn = document.querySelector('.back-to-top')
-    const onScroll = () => {
-      if (btn) btn.classList.toggle('visible', window.scrollY > 300)
-    }
+    const onScroll = () => { if (btn) btn.classList.toggle('visible', window.scrollY > 300) }
     window.addEventListener('scroll', onScroll)
     return () => window.removeEventListener('scroll', onScroll)
   }, [])
@@ -95,7 +158,7 @@ export default function Home() {
       const { error } = await supabase.from('contact_messages').insert([contactForm])
       if (error) throw error
       setContactStatus('success')
-      setContactForm({ name: '', email: '', subject: '', message: '' })
+      setContactForm({ name: '', email: '',contact:'', subject: '', message: '' })
     } catch {
       setContactStatus('error')
     }
@@ -104,77 +167,51 @@ export default function Home() {
   return (
     <div className="home">
 
-      {/* ─── HERO + LOGIN ─────────────────────────────── */}
+      {/* ─── HERO + AUTH ── */}
       <section className="hero" id="hero">
         <div className="hero-overlay" />
         <div className="container hero-inner">
-          {/* Left: Welcome text */}
+
           <div className="hero-content animate-fadeInUp">
             <h1>Welcome to DBA Page</h1>
             <p>We are a team of talented trainers teaching you niche skill sets in Oracle & PostgreSQL database technologies.</p>
             <div className="hero-btns">
-              <a href="#about" className="btn btn-primary" onClick={e => { e.preventDefault(); document.getElementById('about')?.scrollIntoView({ behavior: 'smooth' }) }}>
+              <a href="#contact" className="btn btn-primary" onClick={e => { e.preventDefault(); document.getElementById('contact')?.scrollIntoView({ behavior: 'smooth' }) }}>
                 Get Started
               </a>
               <a href="https://www.youtube.com/watch?v=LXb3EKWsInQ" target="_blank" rel="noreferrer" className="btn btn-outline">
                 <i className="fas fa-play-circle" /> Watch Video
               </a>
             </div>
-
-            {/* Feature icons */}
             <div className="hero-features">
               <div className="hero-feature">
                 <i className="fas fa-database" />
-                <div>
-                  <h4>Expert Training</h4>
-                  <p>25+ years of Oracle & PostgreSQL expertise</p>
-                </div>
+                <div><h4>Expert Training</h4><p>25+ years of Oracle & PostgreSQL expertise</p></div>
               </div>
               <div className="hero-feature">
                 <i className="fas fa-laptop-code" />
-                <div>
-                  <h4>Hands-On Labs</h4>
-                  <p>Practical exercises with real-time scenarios</p>
-                </div>
+                <div><h4>Hands-On Labs</h4><p>Practical exercises with real-time scenarios</p></div>
               </div>
               <div className="hero-feature">
                 <i className="fas fa-certificate" />
-                <div>
-                  <h4>Certification Ready</h4>
-                  <p>Tailored coaching for Oracle certifications</p>
-                </div>
+                <div><h4>Certification Ready</h4><p>Tailored coaching for Oracle certifications</p></div>
               </div>
             </div>
           </div>
 
-          {/* Right: Auth form */}
+          {/* Right panel — no flash, no layout shift */}
           <div className="hero-auth animate-fadeInUp" style={{ animationDelay: '0.15s' }}>
-            {user && profile ? (
-              <div className="hero-logged-in">
-                <div className="hero-avatar">
-                  <i className="fas fa-user-circle" />
-                </div>
-                <h3>Welcome back, {profile.name?.split(' ')[0]}!</h3>
-                <p>Enrolled in: <strong>{profile.course}</strong></p>
-                {profile.approved ? (
-                  <Link to="/dashboard" className="btn btn-primary" style={{ width: '100%', marginTop: 16 }}>
-                    <i className="fas fa-play" /> Go to My Videos
-                  </Link>
-                ) : (
-                  <div className="alert alert-warning" style={{ marginTop: 16 }}>
-                    <i className="fas fa-clock" />
-                    Your account is pending admin approval. You'll receive access once approved.
-                  </div>
-                )}
-              </div>
-            ) : (
-              <AuthForms />
-            )}
+            <HeroAuthPanel
+              user={user}
+              profile={profile}
+              loading={loading}
+              profileLoading={profileLoading}
+            />
           </div>
         </div>
       </section>
 
-      {/* ─── ABOUT ───────────────────────────────────── */}
+      {/* ─── ABOUT ── */}
       <section className="section" id="about">
         <div className="container">
           <div className="section-title">
@@ -188,7 +225,6 @@ export default function Home() {
             <div className="about-content">
               <h3>Expert Oracle / PostgreSQL DBA cum Trainer — 25 Years of Experience.</h3>
               <p>Team of talents, a seasoned Oracle/PostgreSQL Database Architects cum trainers with 25 years of expertise in database management, optimization, and security. Having trained hundreds of professionals globally, and brings a deep understanding of database architecture, performance tuning, and real-world problem-solving.</p>
-
               <div className="about-lists">
                 <div>
                   <h4><i className="fas fa-check-circle" /> Key Expertise</h4>
@@ -215,15 +251,31 @@ export default function Home() {
         </div>
       </section>
 
-      {/* ─── FEATURES (4 boxes) ──────────────────────── */}
+      {/* ─── FEATURES ── */}
       <section className="features-section section section-bg" id="features">
         <div className="container">
           <div className="features-grid">
             {[
-              { icon: 'fa-database', title: 'Lorem Ipsum', desc: 'Voluptatum deleniti atque corrupti quos dolores et quas molestias excepturi' },
-              { icon: 'fa-server', title: 'Sed ut perspici', desc: 'Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore' },
-              { icon: 'fa-shield-alt', title: 'Magni Dolores', desc: 'Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia' },
-              { icon: 'fa-user-graduate', title: 'Nemo Enim', desc: 'At vero eos et accusamus et iusto odio dignissimos ducimus qui blanditiis' },
+                        {
+              icon: 'fa-database',
+              title: 'Industry-Focused Curriculum',
+              desc: 'Learn through structured video modules designed by industry experts. Our courses focus on real-world skills, live projects, and practical implementation to make you job-ready.'
+            },
+            {
+              icon: 'fa-server',
+              title: 'Hands-On Projects & Labs',
+              desc: 'Gain practical experience with guided projects, coding exercises, and real-time assignments. Build a strong portfolio that showcases your technical expertise to employers.'
+            },
+            {
+              icon: 'fa-shield-alt',
+              title: 'Verified Certification',
+              desc: 'Earn recognized certificates upon successful completion of courses and assessments. Showcase your achievements on LinkedIn and strengthen your professional profile.'
+            },
+            {
+              icon: 'fa-user-graduate',
+              title: 'Internship & Career Support',
+              desc: 'Top-performing learners get internship opportunities, career guidance, resume reviews, and interview preparation support to confidently step into the job market.'
+            }
             ].map((f, i) => (
               <div className="feature-card card" key={i}>
                 <div className="feature-icon"><i className={`fas ${f.icon}`} /></div>
@@ -235,7 +287,7 @@ export default function Home() {
         </div>
       </section>
 
-      {/* ─── SERVICES ────────────────────────────────── */}
+      {/* ─── SERVICES ── */}
       <section className="section" id="services">
         <div className="container">
           <div className="section-title">
@@ -244,12 +296,12 @@ export default function Home() {
           </div>
           <div className="services-grid">
             {[
-              { icon: 'fa-database', title: 'Oracle Developer', link: '/courses/oracle-developer', desc: 'Learn Oracle SQL, PL/SQL, stored procedures, functions, packages, and triggers for application development.' },
-              { icon: 'fa-server', title: 'Oracle DBA', link: '/courses/oracle-dba', desc: 'Master Oracle database administration, performance tuning, backup & recovery, and security best practices.' },
-              { icon: 'fa-layer-group', title: 'PostgreSQL Developer', link: '/courses/postgresql-developer', desc: 'Comprehensive PostgreSQL training covering advanced SQL, stored procedures, and database design.' },
-              { icon: 'fa-cogs', title: 'PostgreSQL DBA', link: '/courses/postgresql-dba', desc: 'Learn PostgreSQL administration, replication, performance tuning, and high availability configurations.' },
-              { icon: 'fa-cloud', title: 'Cloud DBA', link: '#', desc: 'Oracle and PostgreSQL on cloud platforms — AWS RDS, Oracle Cloud, Azure Database services.' },
-              { icon: 'fa-headset', title: 'Mentorship', link: '#', desc: 'One-on-one personalized sessions for career growth, interview prep, and certification guidance.' },
+              { icon: 'fa-database',    title: 'Oracle Developer',      link: '/courses/oracle-developer',      desc: 'Learn Oracle SQL, PL/SQL, stored procedures, functions, packages, and triggers for application development.' },
+              { icon: 'fa-server',      title: 'Oracle DBA',            link: '/courses/oracle-dba',            desc: 'Master Oracle database administration, performance tuning, backup & recovery, and security best practices.' },
+              { icon: 'fa-layer-group', title: 'PostgreSQL Developer',  link: '/courses/postgresql-developer',  desc: 'Comprehensive PostgreSQL training covering advanced SQL, stored procedures, and database design.' },
+              { icon: 'fa-cogs',        title: 'PostgreSQL DBA',        link: '/courses/postgresql-dba',        desc: 'Learn PostgreSQL administration, replication, performance tuning, and high availability configurations.' },
+              { icon: 'fa-cloud',       title: 'Cloud DBA',             link: '#',                              desc: 'Oracle and PostgreSQL on cloud platforms — AWS RDS, Oracle Cloud, Azure Database services.' },
+              { icon: 'fa-headset',     title: 'Mentorship',            link: '#',                              desc: 'One-on-one personalized sessions for career growth, interview prep, and certification guidance.' },
             ].map((s, i) => (
               <div className="service-card card" key={i}>
                 <div className="service-icon"><i className={`fas ${s.icon}`} /></div>
@@ -262,11 +314,11 @@ export default function Home() {
         </div>
       </section>
 
-      {/* ─── TESTIMONIALS ────────────────────────────── */}
+      {/* ─── TESTIMONIALS ── */}
       <section className="testimonials-section" id="testimonials">
         <div className="testimonials-bg-overlay" />
         <div className="container">
-          <div className="section-title" style={{ color: '#fff' }}>
+          <div className="section-title">
             <h2 style={{ color: '#fff' }}>Testimonials</h2>
             <p style={{ color: 'rgba(255,255,255,0.7)' }}>What Our Students Say</p>
           </div>
@@ -274,7 +326,7 @@ export default function Home() {
         </div>
       </section>
 
-      {/* ─── VIDEOS ──────────────────────────────────── */}
+      {/* ─── VIDEOS ── */}
       <section className="section section-bg" id="videos">
         <div className="container">
           <div className="section-title">
@@ -301,7 +353,7 @@ export default function Home() {
         </div>
       </section>
 
-      {/* ─── FAQ ─────────────────────────────────────── */}
+      {/* ─── FAQ ── */}
       <section className="section" id="faq">
         <div className="container">
           <div className="section-title">
@@ -314,7 +366,7 @@ export default function Home() {
         </div>
       </section>
 
-      {/* ─── CONTACT ─────────────────────────────────── */}
+      {/* ─── CONTACT ── */}
       <section className="section section-bg" id="contact">
         <div className="container">
           <div className="section-title">
@@ -322,42 +374,32 @@ export default function Home() {
             <p>Need Help? Contact Us</p>
           </div>
           <div className="contact-grid">
-            {/* Info */}
             <div className="contact-info">
               <div className="contact-item">
                 <div className="contact-icon"><i className="fas fa-map-marker-alt" /></div>
-                <div>
-                  <h4>Address</h4>
-                  <p>Yelahanka, Bangalore</p>
-                </div>
+                <div><h4>Address</h4><p>Yelahanka, Bangalore</p></div>
               </div>
               <div className="contact-item">
                 <div className="contact-icon"><i className="fas fa-phone" /></div>
-                <div>
-                  <h4>Call Me</h4>
-                  <p>+91 9980588044</p>
-                </div>
+                <div><h4>Call Me</h4><p>+91 9980588044</p></div>
               </div>
               <div className="contact-item">
                 <div className="contact-icon"><i className="fas fa-envelope" /></div>
-                <div>
-                  <h4>Email Us</h4>
-                  <p>gopi.orafly@gmail.com</p>
-                </div>
+                <div><h4>Email Us</h4><p>gopi.orafly@gmail.com</p></div>
               </div>
             </div>
-
-            {/* Form */}
             <form className="contact-form" onSubmit={handleContact}>
               {contactStatus === 'success' && <div className="alert alert-success"><i className="fas fa-check" /> Message sent successfully!</div>}
               {contactStatus === 'error'   && <div className="alert alert-error"><i className="fas fa-times" /> Something went wrong. Try again.</div>}
-
               <div className="form-row">
                 <div className="form-group">
                   <input className="form-control" placeholder="Your Name" required value={contactForm.name} onChange={e => setContactForm(p => ({ ...p, name: e.target.value }))} />
                 </div>
                 <div className="form-group">
                   <input className="form-control" type="email" placeholder="Your Email" required value={contactForm.email} onChange={e => setContactForm(p => ({ ...p, email: e.target.value }))} />
+                </div>
+                <div className="form-group">
+                  <input className="form-control" placeholder="Your contact" required value={contactForm.contact} onChange={e => setContactForm(p => ({ ...p, contact: e.target.value }))} />
                 </div>
               </div>
               <div className="form-group">
@@ -374,7 +416,6 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Back to top */}
       <button className="back-to-top" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}>
         <i className="fas fa-arrow-up" />
       </button>

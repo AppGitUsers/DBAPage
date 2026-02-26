@@ -1,6 +1,5 @@
 import { useState } from 'react'
 import { supabase } from '../lib/supabase'
-import { useAuth } from '../contexts/AuthContext'
 import './AuthForms.css'
 
 const COURSES = [
@@ -12,15 +11,20 @@ const COURSES = [
 
 export default function AuthForms() {
   const [tab, setTab] = useState('login')
-  // const { fetchProfile } = useAuth()
 
   /* ── LOGIN STATE ── */
-  const [loginData, setLoginData] = useState({ email: '', password: '' })
-  const [loginStatus, setLoginStatus] = useState(null)
+  const [loginData, setLoginData]     = useState({ email: '', password: '' })
+  const [loginStatus, setLoginStatus] = useState(null) // null | 'loading' | error string
 
   /* ── REGISTER STATE ── */
-  const [regData, setRegData] = useState({ name: '', email: '', password: '', course: '' })
-  const [regStatus, setRegStatus] = useState(null)
+  const [regData, setRegData]     = useState({ name: '', email: '', password: '', course: '' })
+  const [regStatus, setRegStatus] = useState(null)     // null | 'loading' | 'success' | error string
+
+  const switchTab = (t) => {
+    setTab(t)
+    setLoginStatus(null)
+    setRegStatus(null)
+  }
 
   /* ─── LOGIN ─── */
   const handleLogin = async (e) => {
@@ -29,35 +33,37 @@ export default function AuthForms() {
 
     try {
       const { data, error } = await supabase.auth.signInWithPassword({
-        email: loginData.email,
+        email:    loginData.email,
         password: loginData.password,
       })
 
       if (error) throw error
-      if (!data?.user) throw new Error("Login failed.")
+      if (!data?.user) throw new Error('Login failed — no user returned.')
 
-      // Check approval
-      const { data: profile, error: profErr } = await supabase
+      // Check approval BEFORE allowing the session to persist
+      const { data: prof, error: profErr } = await supabase
         .from('profiles')
         .select('approved')
         .eq('id', data.user.id)
         .single()
 
-      if (profErr) throw profErr
+      if (profErr) throw new Error('Could not fetch your profile. Please try again.')
 
-      if (!profile?.approved) {
+      if (!prof?.approved) {
+        // Sign out immediately so session doesn't linger
         await supabase.auth.signOut()
-        setLoginStatus('Your account is pending admin approval. Please wait.')
+        setLoginStatus('Your account is awaiting admin approval. Please wait.')
         return
       }
 
-      // Let AuthContext handle session/profile properly
-      // await fetchProfile(data.user.id)
-
+      // ✅ Approved — AuthContext's onAuthStateChange listener will pick up the
+      // session automatically and set user + profile. No manual fetchProfile needed.
       setLoginStatus(null)
 
     } catch (err) {
-      setLoginStatus(err.message || 'Login failed. Check your credentials.')
+      // If we threw after a successful signIn, make sure we're signed out
+      await supabase.auth.signOut().catch(() => {})
+      setLoginStatus(err.message || 'Login failed. Please check your credentials.')
     }
   }
 
@@ -73,61 +79,59 @@ export default function AuthForms() {
     setRegStatus('loading')
 
     try {
-      // 1️⃣ Create auth user
+      // 1. Create Supabase Auth user
       const { data, error } = await supabase.auth.signUp({
-        email: regData.email,
+        email:    regData.email,
         password: regData.password,
       })
 
       if (error) throw error
-      if (!data?.user?.id) {
-        setRegStatus("User creation failed.")
-        return
-      }
+      if (!data?.user?.id) throw new Error('Registration failed — no user ID returned.')
 
-      // 2️⃣ Insert profile row
+      // 2. Insert profile row (approved = false)
       const { error: profErr } = await supabase
         .from('profiles')
         .insert([{
-          id: data.user.id,
-          name: regData.name,
-          email: regData.email,
-          course: regData.course,
+          id:       data.user.id,
+          name:     regData.name,
+          email:    regData.email,
+          course:   regData.course,
           approved: false,
         }])
 
       if (profErr) throw profErr
 
-      // 3️⃣ Sign out (waiting for admin approval)
+      // 3. Sign out immediately — they need admin approval before accessing anything
       await supabase.auth.signOut()
 
       setRegStatus('success')
 
     } catch (err) {
+      await supabase.auth.signOut().catch(() => {})
       setRegStatus(err.message || 'Registration failed. Please try again.')
     }
   }
 
+  /* ── RENDER ── */
   return (
     <div className="auth-forms">
       {/* Tab switcher */}
       <div className="auth-tabs">
         <button
           className={`auth-tab${tab === 'login' ? ' active' : ''}`}
-          onClick={() => { setTab('login'); setLoginStatus(null) }}
+          onClick={() => switchTab('login')}
         >
           <i className="fas fa-sign-in-alt" /> Login
         </button>
-
         <button
           className={`auth-tab${tab === 'register' ? ' active' : ''}`}
-          onClick={() => { setTab('register'); setRegStatus(null) }}
+          onClick={() => switchTab('register')}
         >
           <i className="fas fa-user-plus" /> Register
         </button>
       </div>
 
-      {/* ── LOGIN ── */}
+      {/* ── LOGIN TAB ── */}
       {tab === 'login' && (
         <form className="auth-form animate-fadeIn" onSubmit={handleLogin}>
           <h3 className="auth-title">Welcome Back</h3>
@@ -148,6 +152,7 @@ export default function AuthForms() {
                 className="form-control has-icon"
                 placeholder="your@email.com"
                 required
+                autoComplete="email"
                 value={loginData.email}
                 onChange={e => setLoginData(p => ({ ...p, email: e.target.value }))}
               />
@@ -163,13 +168,18 @@ export default function AuthForms() {
                 className="form-control has-icon"
                 placeholder="••••••••"
                 required
+                autoComplete="current-password"
                 value={loginData.password}
                 onChange={e => setLoginData(p => ({ ...p, password: e.target.value }))}
               />
             </div>
           </div>
 
-          <button type="submit" className="btn btn-primary auth-submit" disabled={loginStatus === 'loading'}>
+          <button
+            type="submit"
+            className="btn btn-primary auth-submit"
+            disabled={loginStatus === 'loading'}
+          >
             {loginStatus === 'loading'
               ? <><span className="spinner" /> Signing in…</>
               : 'Sign In'}
@@ -177,18 +187,14 @@ export default function AuthForms() {
 
           <p className="auth-switch">
             Don't have an account?{' '}
-            <button
-              type="button"
-              className="link-btn"
-              onClick={() => { setTab('register'); setLoginStatus(null) }}
-            >
+            <button type="button" className="link-btn" onClick={() => switchTab('register')}>
               Register here
             </button>
           </p>
         </form>
       )}
 
-      {/* ── REGISTER ── */}
+      {/* ── REGISTER TAB ── */}
       {tab === 'register' && (
         <form className="auth-form animate-fadeIn" onSubmit={handleRegister}>
           <h3 className="auth-title">Create Account</h3>
@@ -201,14 +207,14 @@ export default function AuthForms() {
               </div>
               <h4>Registration Successful!</h4>
               <p>
-                Your account has been created. Please wait for admin approval
-                before you can log in. You'll be notified once access is granted.
+                Your account has been created and is awaiting admin approval.
+                You'll be able to log in once access is granted.
               </p>
               <button
                 type="button"
                 className="btn btn-primary"
                 style={{ marginTop: 16, width: '100%' }}
-                onClick={() => { setTab('login'); setRegStatus(null) }}
+                onClick={() => switchTab('login')}
               >
                 Go to Login
               </button>
@@ -245,6 +251,7 @@ export default function AuthForms() {
                     className="form-control has-icon"
                     placeholder="your@email.com"
                     required
+                    autoComplete="email"
                     value={regData.email}
                     onChange={e => setRegData(p => ({ ...p, email: e.target.value }))}
                   />
@@ -261,6 +268,7 @@ export default function AuthForms() {
                     placeholder="Min. 6 characters"
                     minLength={6}
                     required
+                    autoComplete="new-password"
                     value={regData.password}
                     onChange={e => setRegData(p => ({ ...p, password: e.target.value }))}
                   />
@@ -285,7 +293,11 @@ export default function AuthForms() {
                 </div>
               </div>
 
-              <button type="submit" className="btn btn-primary auth-submit" disabled={regStatus === 'loading'}>
+              <button
+                type="submit"
+                className="btn btn-primary auth-submit"
+                disabled={regStatus === 'loading'}
+              >
                 {regStatus === 'loading'
                   ? <><span className="spinner" /> Registering…</>
                   : 'Create Account'}
@@ -293,11 +305,7 @@ export default function AuthForms() {
 
               <p className="auth-switch">
                 Already have an account?{' '}
-                <button
-                  type="button"
-                  className="link-btn"
-                  onClick={() => { setTab('login'); setRegStatus(null) }}
-                >
+                <button type="button" className="link-btn" onClick={() => switchTab('login')}>
                   Sign in
                 </button>
               </p>
