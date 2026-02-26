@@ -3,8 +3,8 @@ import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import './AdminDashboard.css'
 
-const ADMIN_EMAIL    = 'admin@dbapage.com'
-const ADMIN_PASSWORD = 'DBAadmin@2024'
+const ADMIN_EMAIL    = import.meta.env.VITE_ADMIN_EMAIL
+const ADMIN_PASSWORD = import.meta.env.VITE_ADMIN_PASSWORD
 
 const COURSES = ['Oracle Developer', 'Oracle DBA', 'PostgreSQL Developer', 'PostgreSQL DBA']
 
