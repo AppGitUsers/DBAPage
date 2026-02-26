@@ -377,7 +377,7 @@ export default function Home() {
             <div className="contact-info">
               <div className="contact-item">
                 <div className="contact-icon"><i className="fas fa-map-marker-alt" /></div>
-                <div><h4>Address</h4><p>Yelahanka, Bangalore</p></div>
+                <div><h4>Address</h4><p>Ambattur, Chennai</p></div>
               </div>
               <div className="contact-item">
                 <div className="contact-icon"><i className="fas fa-phone" /></div>
@@ -385,7 +385,7 @@ export default function Home() {
               </div>
               <div className="contact-item">
                 <div className="contact-icon"><i className="fas fa-envelope" /></div>
-                <div><h4>Email Us</h4><p>gopi.orafly@gmail.com</p></div>
+                <div><h4>Email Us</h4><p>hamsad@tesdbacademy.com</p></div>
               </div>
             </div>
             <form className="contact-form" onSubmit={handleContact}>
