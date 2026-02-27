@@ -6,7 +6,7 @@ import './AdminDashboard.css'
 const ADMIN_EMAIL    = import.meta.env.VITE_ADMIN_EMAIL
 const ADMIN_PASSWORD = import.meta.env.VITE_ADMIN_PASSWORD
 
-const COURSES = ['Oracle Developer', 'Oracle DBA', 'PostgreSQL Developer', 'PostgreSQL DBA']
+const COURSES = ['Oracle Developer', 'Oracle DBA', 'PostgreSQL Developer', 'PostgreSQL DBA','Linux','Environment']
 
 /* ─────────────────────────────────────────────────────────────────────────────
    MAIN COMPONENT

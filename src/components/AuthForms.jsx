@@ -7,6 +7,8 @@ const COURSES = [
   'Oracle DBA',
   'PostgreSQL Developer',
   'PostgreSQL DBA',
+  'Linux',
+  'Environment',
 ]
 
 export default function AuthForms() {
