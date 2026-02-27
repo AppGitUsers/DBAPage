@@ -1,19 +1,24 @@
 import { useState } from 'react'
 import { supabase } from '../lib/supabase'
 import './AuthForms.css'
+import { useCourses } from '../lib/useCourses'
+// const COURSES = [
+//   'Oracle Developer',
+//   'Oracle DBA',
+//   'PostgreSQL Developer',
+//   'PostgreSQL DBA',
+//   'Linux',
+//   'Environment',
+// ]
 
-const COURSES = [
-  'Oracle Developer',
-  'Oracle DBA',
-  'PostgreSQL Developer',
-  'PostgreSQL DBA',
-  'Linux',
-  'Environment',
-]
+
+
 
 export default function AuthForms() {
   const [tab, setTab] = useState('login')
-
+  const {COURSES,loading} = useCourses();
+  console.log(COURSES)
+  console.log(loading)
   /* ── LOGIN STATE ── */
   const [loginData, setLoginData]     = useState({ email: '', password: '' })
   const [loginStatus, setLoginStatus] = useState(null) // null | 'loading' | error string

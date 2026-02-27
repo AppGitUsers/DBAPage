@@ -1,32 +1,158 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import './Dashboard.css'
 
+/* ── Extract YouTube video ID from any YT url format ── */
+function getYtId(url) {
+  if (!url) return null
+  const m = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([A-Za-z0-9_-]{11})/)
+  return m ? m[1] : null
+}
+
+/* ── Video Player Modal ───────────────────────────────────────────────────── */
+function VideoModal({ video, onClose }) {
+  const iframeRef  = useRef(null)
+  const overlayRef = useRef(null)
+  const ytId = getYtId(video.video_url)
+
+  // Close on Escape key
+  useEffect(() => {
+    const handler = (e) => { if (e.key === 'Escape') onClose() }
+    document.addEventListener('keydown', handler)
+    document.body.style.overflow = 'hidden'   // lock scroll while open
+    return () => {
+      document.removeEventListener('keydown', handler)
+      document.body.style.overflow = ''
+    }
+  }, [onClose])
+
+  const handleFullscreen = () => {
+    const el = iframeRef.current
+    if (!el) return
+    if (el.requestFullscreen)       el.requestFullscreen()
+    else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen()
+    else if (el.mozRequestFullScreen)    el.mozRequestFullScreen()
+  }
+
+  // Click overlay backdrop to close
+  const handleOverlayClick = (e) => {
+    if (e.target === overlayRef.current) onClose()
+  }
+
+  return (
+    <div className="video-modal-overlay" ref={overlayRef} onClick={handleOverlayClick}>
+      
+      <div className="video-modal">
+        {/* Header bar */}
+        <div className="video-modal-header">
+          <div className="video-modal-title">
+            <span className="video-modal-badge">{video.course}</span>
+            <h3>{video.title}</h3>
+            {video.duration && (
+              <span className="video-modal-dur"><i className="fas fa-clock" /> {video.duration}</span>
+            )}
+          </div>
+          <div className="video-modal-controls">
+            <button className="vmc-btn" onClick={handleFullscreen} title="Fullscreen">
+              <i className="fas fa-expand" />
+            </button>
+            {/* <a
+              href={video.video_url}
+              target="_blank"
+              rel="noreferrer"
+              className="vmc-btn"
+              title="Open in YouTube"
+            >
+              <i className="fab fa-youtube" />
+            </a> */}
+            <button className="vmc-btn vmc-close" onClick={onClose} title="Close">
+              <i className="fas fa-times" />
+            </button>
+          </div>
+        </div>
+
+        {/* Player */}
+        <div className="video-modal-player">
+          {ytId ? (
+            <iframe
+              ref={iframeRef}
+              src={`https://www.youtube.com/embed/${ytId}?autoplay=1&rel=0&modestbranding=1`}
+              title={video.title}
+              frameBorder="0"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen"
+              allowFullScreen
+            />
+          ) : (
+            <div className="video-modal-noyt">
+              <i className="fas fa-video-slash" />
+              <p>Cannot embed this video.</p>
+              <a href={video.video_url} target="_blank" rel="noreferrer" className="btn btn-primary">
+                Open Video Link
+              </a>
+            </div>
+          )}
+        </div>
+
+        {/* Description */}
+        {video.description && (
+          <div className="video-modal-desc">
+            <p>{video.description}</p>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+/* ── Video Card ── */
+function VideoCard({ video, onClick }) {
+  const ytId = getYtId(video.video_url)
+  const thumb = video.thumbnail_url || (ytId ? `https://img.youtube.com/vi/${ytId}/mqdefault.jpg` : null)
+
+  return (
+    <div className="dash-video-card card" onClick={onClick} role="button" tabIndex={0}
+      onKeyDown={e => e.key === 'Enter' && onClick()}>
+      <div className="dash-video-thumb">
+        {thumb
+          ? <img src={thumb} alt={video.title} />
+          : <div className="dash-video-placeholder"><i className="fas fa-play-circle" /></div>
+        }
+        <div className="dash-video-overlay">
+          <div className="dash-play-btn"><i className="fas fa-play" /></div>
+        </div>
+        <span className="dash-video-badge">{video.course}</span>
+      </div>
+      <div className="dash-video-info">
+        <h4>{video.title}</h4>
+        {video.description && <p>{video.description}</p>}
+        {video.duration && (
+          <span className="dash-video-duration"><i className="fas fa-clock" /> {video.duration}</span>
+        )}
+      </div>
+    </div>
+  )
+}
+
+/* ── Dashboard ── */
 export default function Dashboard() {
   const { user, profile, loading, signOut } = useAuth()
-  const navigate    = useNavigate()
-  const [videos,    setVideos]    = useState([])
-  const [fetching,  setFetching]  = useState(false)
-  const [fetchErr,  setFetchErr]  = useState(null)
-  const [search,    setSearch]    = useState('')
-  const hasFetched  = useRef(false)
+  const navigate   = useNavigate()
+  const [videos,   setVideos]   = useState([])
+  const [fetching, setFetching] = useState(false)
+  const [fetchErr, setFetchErr] = useState(null)
+  const [search,   setSearch]   = useState('')
+  const [playing,  setPlaying]  = useState(null)   // video object currently in modal
+  const hasFetched = useRef(false)
 
-  // ── Auth guard ─────────────────────────────────────────────────────────────
-  // `loading` is true while onAuthStateChange hasn't fired yet.
-  // Once loading is false:
-  //   user === null  →  not logged in  →  redirect
-  //   user exists but profile === null  →  profile fetch failed (rare)  →  redirect
-  //   profile exists but !approved  →  redirect
   useEffect(() => {
-    if (loading) return                          // still waiting for INITIAL_SESSION
-    if (user === null) { navigate('/'); return } // definitely not logged in
-    if (user && profile === null) return         // user known, profile still loading — wait
+    if (loading) return
+    if (user === null) { navigate('/'); return }
+    if (user && profile === null) return
     if (profile && !profile.approved) { navigate('/'); return }
   }, [loading, user, profile, navigate])
 
-  // ── Fetch videos once we have a confirmed approved profile ─────────────────
   useEffect(() => {
     if (!profile?.approved || hasFetched.current) return
     hasFetched.current = true
@@ -45,7 +171,6 @@ export default function Dashboard() {
       if (error) throw error
       setVideos(data || [])
     } catch (err) {
-      console.error('[Dashboard] loadVideos:', err.message)
       setFetchErr(err.message || 'Failed to load videos.')
     } finally {
       setFetching(false)
@@ -57,7 +182,8 @@ export default function Dashboard() {
     (v.description || '').toLowerCase().includes(search.toLowerCase())
   )
 
-  // ── Loading screen — shown while auth or profile is resolving ──────────────
+  const closeModal = useCallback(() => setPlaying(null), [])
+
   if (loading || (user && profile === null)) {
     return (
       <div className="dash-loading">
@@ -67,13 +193,14 @@ export default function Dashboard() {
     )
   }
 
-  // Redirect is in-flight — render nothing to avoid flash
   if (!user || !profile || !profile.approved) return null
 
   return (
     <div className="dashboard">
+      {/* Video Modal */}
+      {playing && <VideoModal video={playing} onClose={closeModal} />}
 
-      {/* ── Header ── */}
+      {/* Header */}
       <div className="dash-header">
         <div className="container dash-header-inner">
           <div>
@@ -86,66 +213,47 @@ export default function Dashboard() {
               <p className="dash-name">{profile.name}</p>
               <p className="dash-email">{profile.email}</p>
             </div>
-            <button
-              className="btn btn-outline dash-signout"
-              onClick={async () => { await signOut(); navigate('/') }}
-            >
+            <button className="btn btn-outline dash-signout"
+              onClick={async () => { await signOut(); navigate('/') }}>
               <i className="fas fa-sign-out-alt" /> Sign Out
             </button>
           </div>
         </div>
       </div>
 
-      {/* ── Stats ── */}
+      {/* Stats */}
       <div className="dash-stats">
         <div className="container">
           <div className="stats-row">
             <div className="stat-item">
               <i className="fas fa-play-circle" />
-              <div>
-                <span className="stat-num">{videos.length}</span>
-                <span className="stat-label">Videos Available</span>
-              </div>
+              <div><span className="stat-num">{videos.length}</span><span className="stat-label">Videos Available</span></div>
             </div>
             <div className="stat-item">
               <i className="fas fa-graduation-cap" />
-              <div>
-                <span className="stat-num">{profile.course}</span>
-                <span className="stat-label">Your Course</span>
-              </div>
+              <div><span className="stat-num">{profile.course}</span><span className="stat-label">Your Course</span></div>
             </div>
             <div className="stat-item">
               <i className="fas fa-check-circle" />
-              <div>
-                <span className="stat-num" style={{ color: 'var(--green)' }}>Active</span>
-                <span className="stat-label">Account Status</span>
-              </div>
+              <div><span className="stat-num" style={{ color: 'var(--green)' }}>Active</span><span className="stat-label">Account Status</span></div>
             </div>
           </div>
         </div>
       </div>
 
-      {/* ── Videos ── */}
+      {/* Videos */}
       <div className="dash-body">
         <div className="container">
           <div className="dash-videos-header">
             <h2><i className="fas fa-play-circle" /> {profile.course} Videos</h2>
             <div className="dash-search">
               <i className="fas fa-search" />
-              <input
-                type="text"
-                placeholder="Search videos…"
-                value={search}
-                onChange={e => setSearch(e.target.value)}
-              />
+              <input type="text" placeholder="Search videos…" value={search} onChange={e => setSearch(e.target.value)} />
             </div>
           </div>
 
           {fetching && (
-            <div className="dash-fetching">
-              <span className="spinner spinner-dark" />
-              <p>Loading videos…</p>
-            </div>
+            <div className="dash-fetching"><span className="spinner spinner-dark" /><p>Loading videos…</p></div>
           )}
 
           {!fetching && fetchErr && (
@@ -153,11 +261,8 @@ export default function Dashboard() {
               <i className="fas fa-exclamation-triangle" />
               <h3>Couldn't load videos</h3>
               <p>{fetchErr}</p>
-              <button
-                className="btn btn-primary"
-                style={{ marginTop: 16 }}
-                onClick={() => { hasFetched.current = false; loadVideos(profile.course) }}
-              >
+              <button className="btn btn-primary" style={{ marginTop: 16 }}
+                onClick={() => { hasFetched.current = false; loadVideos(profile.course) }}>
                 <i className="fas fa-sync-alt" /> Retry
               </button>
             </div>
@@ -173,42 +278,13 @@ export default function Dashboard() {
 
           {!fetching && !fetchErr && filtered.length > 0 && (
             <div className="dash-videos-grid">
-              {filtered.map(v => <VideoCard key={v.id} video={v} />)}
+              {filtered.map(v => (
+                <VideoCard key={v.id} video={v} onClick={() => setPlaying(v)} />
+              ))}
             </div>
           )}
         </div>
       </div>
     </div>
-  )
-}
-
-function VideoCard({ video }) {
-  const getThumb = (url) => {
-    if (!url) return null
-    const m = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([A-Za-z0-9_-]{11})/)
-    return m ? `https://img.youtube.com/vi/${m[1]}/mqdefault.jpg` : null
-  }
-  const thumb = video.thumbnail_url || getThumb(video.video_url)
-
-  return (
-    <a href={video.video_url} target="_blank" rel="noreferrer" className="dash-video-card card">
-      <div className="dash-video-thumb">
-        {thumb
-          ? <img src={thumb} alt={video.title} />
-          : <div className="dash-video-placeholder"><i className="fas fa-play-circle" /></div>
-        }
-        <div className="dash-video-overlay"><i className="fas fa-play" /></div>
-        <span className="dash-video-badge">{video.course}</span>
-      </div>
-      <div className="dash-video-info">
-        <h4>{video.title}</h4>
-        {video.description && <p>{video.description}</p>}
-        {video.duration && (
-          <span className="dash-video-duration">
-            <i className="fas fa-clock" /> {video.duration}
-          </span>
-        )}
-      </div>
-    </a>
   )
 }
