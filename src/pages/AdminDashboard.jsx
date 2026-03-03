@@ -121,12 +121,25 @@ function CandidatesPanel() {
   const [toast,      setToast]      = useState(null)
   const [deleting,   setDeleting]   = useState(null)
   const [confirmDel, setConfirmDel] = useState(null)
+  const [editCourses, setEditCourses] = useState(null)
 
   const showToast = (msg, type = 'success') => { setToast({ msg, type }); setTimeout(() => setToast(null), 3500) }
 
   const fetchCandidates = useCallback(async () => {
     setLoading(true)
-    const { data, error } = await supabase.from('profiles').select('*').order('created_at', { ascending: false })
+    const { data, error } = await supabase
+      .from('profiles')
+      .select(`
+        *,
+        student_courses (
+          course_id,
+          courses (
+            id,
+            name
+          )
+        )
+      `)
+      .order('created_at', { ascending: false })
     if (!error) setCandidates(data || [])
     setLoading(false)
   }, [])
@@ -160,6 +173,7 @@ function CandidatesPanel() {
 
   const pending  = candidates.filter(c => !c.approved).length
   const approved = candidates.filter(c =>  c.approved).length
+ 
 
   return (
     <div className="admin-panel">
@@ -190,14 +204,31 @@ function CandidatesPanel() {
       : (
         <div className="admin-table-wrap">
           <table className="admin-table">
-            <thead><tr><th>Name</th><th>Email</th><th>Contact</th><th>Course</th><th>Registered</th><th>Status</th><th>Actions</th></tr></thead>
+            <thead><tr><th>Name</th><th>Email</th><th>Contact</th><th>Course</th><th>Registered</th><th>Status</th><th>Actions</th><th>Add Cources</th></tr></thead>
             <tbody>
               {filtered.map(c => (
                 <tr key={c.id}>
                   <td><div className="candidate-name"><div className="candidate-avatar">{c.name.charAt(0).toUpperCase()}</div>{c.name}</div></td>
                   <td className="td-email">{c.email}</td>
                   <td className="td-email">{c.contact || '—'}</td>
-                  <td><span className="course-tag">{c.course}</span></td>
+                  <td>
+                      {c.course && (
+                        <span className="course-tag primary-course">
+                          {c.course}
+                        </span>
+                      )}
+                      {c.student_courses?.length > 0 &&
+                        c.student_courses.map(sc => (
+                          <div>
+                          <span key={sc.course_id} className="course-tag">
+                            {sc.courses.name} 
+                          </span><br />
+                          
+                          </div>
+                          
+                        ))}
+                      {!c.course && (!c.student_courses || c.student_courses.length === 0) && '—'}
+                  </td>
                   <td className="td-date">{new Date(c.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</td>
                   <td><span className={`status-badge ${c.approved ? 'status-approved' : 'status-pending'}`}><i className={`fas fa-${c.approved ? 'check' : 'clock'}`} />{c.approved ? 'Approved' : 'Pending'}</span></td>
                   <td>
@@ -208,11 +239,29 @@ function CandidatesPanel() {
                       <button className="action-btn action-btn--delete" onClick={() => setConfirmDel(c)}><i className="fas fa-trash" /></button>
                     </div>
                   </td>
+                  <td>
+                    <div className="action-btns">
+                    <button
+                      className="action-btn action-btn--view"
+                      onClick={() => setEditCourses(c)}
+                    >
+                      <i className="fas fa-graduation-cap" /> Courses
+                    </button>
+                    </div>
+                  </td>
                 </tr>
+                
               ))}
             </tbody>
           </table>
         </div>
+      )}
+      {editCourses && (
+        <AssignCoursesModal
+          student={editCourses}
+          onClose={() => setEditCourses(null)}
+          onUpdated={fetchCandidates}
+        />
       )}
       {confirmDel && (
         <ConfirmModal
@@ -313,7 +362,7 @@ function CoursesPanel() {
       : (
         <div className="admin-table-wrap">
           <table className="admin-table">
-            <thead><tr><th>Order</th><th>Course Name</th><th>Description</th><th>Status</th><th>Actions</th></tr></thead>
+            <thead><tr><th>Order</th><th>Course Name</th><th>Description</th><th>Status</th><th>Actions</th><th>Add Cources</th></tr></thead>
             <tbody>
               {courses.map((c, idx) => (
                 <tr key={c.id} className={!c.active ? 'row-inactive' : ''}>
@@ -553,7 +602,7 @@ function VideosPanel() {
       : (
         <div className="admin-table-wrap">
           <table className="admin-table">
-            <thead><tr><th>Title</th><th>Course</th><th>Visibility</th><th>Duration</th><th>Added</th><th>Actions</th></tr></thead>
+            <thead><tr><th>Title</th><th>Course</th><th>Visibility</th><th>Duration</th><th>Added</th><th>Actions</th><th>Add Cources</th></tr></thead>
             <tbody>
               {filtered.map(v => {
                 const ytId = v.video_url?.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([A-Za-z0-9_-]{11})/)?.[1]
@@ -713,6 +762,7 @@ function MessagesPanel() {
   const [filter,     setFilter]     = useState('all')
   const [selected,   setSelected]   = useState(null)
   const [confirmDel, setConfirmDel] = useState(null)
+
   const [deleting,   setDeleting]   = useState(null)
   const [toast,      setToast]      = useState(null)
 
@@ -869,6 +919,74 @@ function ConfirmModal({ icon, title, message, onCancel, onConfirm, loading, conf
           <button className="btn admin-btn-danger" disabled={loading} onClick={onConfirm}>
             {loading ? <><span className="spinner" /> Deleting…</> : confirmLabel}
           </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function AssignCoursesModal({ student, onClose, onUpdated }) {
+  const [courses, setCourses] = useState([])
+  const [selected, setSelected] = useState(
+    student.student_courses.map(sc => sc.course_id)
+  )
+  const profileCourseName = student?.course;  
+
+  useEffect(() => {
+    supabase.from('courses')
+      .select('*')
+      .eq('active', true)
+      .then(({ data }) => setCourses(data || []))
+  }, [])
+
+  const toggleCourse = (id) => {
+    setSelected(prev =>
+      prev.includes(id)
+        ? prev.filter(c => c !== id)
+        : [...prev, id]
+    )
+  }
+
+  const save = async () => {
+    // delete old
+    await supabase
+      .from('student_courses')
+      .delete()
+      .eq('student_id', student.id)
+
+    // insert new
+    const inserts = selected.map(course_id => ({
+      student_id: student.id,
+      course_id
+    }))
+
+    if (inserts.length > 0) {
+      await supabase.from('student_courses').insert(inserts)
+    }
+
+    onUpdated()
+    onClose()
+  }
+
+  return (
+    <div className="admin-modal-overlay" onClick={onClose}>
+      <div className="admin-modal" onClick={e => e.stopPropagation()}>
+        <h3>Assign Courses to {student.name}</h3>
+
+        {courses.map(c => (
+          <label key={c.id} style={{ display: 'block', marginBottom: 8 }}>
+            <input
+              type="checkbox"
+              checked={selected.includes(c.id) || c.name===profileCourseName}
+              onChange={() => toggleCourse(c.id)}
+            />
+            {' '} {c.name}
+          </label>
+        ))}
+
+        <div className="admin-modal-btns">
+          <button className="btn btn-outline" onClick={onClose}>Cancel</button>
+          <button className="btn btn-primary" onClick={save}>Save</button>
         </div>
       </div>
     </div>

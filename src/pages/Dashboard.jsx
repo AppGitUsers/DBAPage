@@ -145,6 +145,12 @@ export default function Dashboard() {
   const [search,   setSearch]   = useState('')
   const [playing,  setPlaying]  = useState(null)   // video object currently in modal
   const hasFetched = useRef(false)
+  const allCourseNames = profile
+  ? [
+      profile.course,
+      ...(profile.student_courses?.map(sc => sc.courses.name) || [])
+    ]
+  : []
 
   useEffect(() => {
     if (loading) return
@@ -163,10 +169,15 @@ export default function Dashboard() {
     setFetching(true)
     setFetchErr(null)
     try {
+
+
+      console.log("all courses "+allCourseNames)
+      console.log("type:", typeof allCourseNames)
+
       const { data, error } = await supabase
         .from('videos')
         .select('*')
-        .eq('course', course)
+        .in('course', allCourseNames)
         .order('created_at', { ascending: false })
       if (error) throw error
       setVideos(data || [])
@@ -194,7 +205,10 @@ export default function Dashboard() {
   }
 
   if (!user || !profile || !profile.approved) return null
-
+  const groupedVideos = allCourseNames.reduce((acc, course) => {
+      acc[course] = filtered.filter(v => v.course === course)
+      return acc
+    }, {})
   return (
     <div className="dashboard">
       {/* Video Modal */}
@@ -231,8 +245,14 @@ export default function Dashboard() {
             </div>
             <div className="stat-item">
               <i className="fas fa-graduation-cap" />
-              <div><span className="stat-num">{profile.course}</span><span className="stat-label">Your Course</span></div>
-            </div>
+              <div><span className="stat-num">            
+                {allCourseNames.map((course, index) => (
+                  <span key={index}>
+                    {course}
+                    {index < allCourseNames.length - 1 && ', '}
+                  </span>
+                ))}</span><span className="stat-label">Your Courses</span></div>
+              </div>
             <div className="stat-item">
               <i className="fas fa-check-circle" />
               <div><span className="stat-num" style={{ color: 'var(--green)' }}>Active</span><span className="stat-label">Account Status</span></div>
@@ -245,7 +265,7 @@ export default function Dashboard() {
       <div className="dash-body">
         <div className="container">
           <div className="dash-videos-header">
-            <h2><i className="fas fa-play-circle" /> {profile.course} Videos</h2>
+            {/* <h2><i className="fas fa-play-circle" /> {profile.course} Videos</h2> */}
             <div className="dash-search">
               <i className="fas fa-search" />
               <input type="text" placeholder="Search videos…" value={search} onChange={e => setSearch(e.target.value)} />
@@ -276,13 +296,27 @@ export default function Dashboard() {
             </div>
           )}
 
-          {!fetching && !fetchErr && filtered.length > 0 && (
-            <div className="dash-videos-grid">
-              {filtered.map(v => (
-                <VideoCard key={v.id} video={v} onClick={() => setPlaying(v)} />
-              ))}
-            </div>
-          )}
+          {!fetching && !fetchErr && allCourseNames.map(course => (
+          <div key={course} style={{ marginBottom: 40 }}>
+            <h2 style={{ marginBottom: 16 }}>
+              <i className="fas fa-play-circle" /> {course} Videos
+            </h2>
+
+            {groupedVideos[course]?.length > 0 ? (
+              <div className="dash-videos-grid">
+                {groupedVideos[course].map(v => (
+                  <VideoCard
+                    key={v.id}
+                    video={v}
+                    onClick={() => setPlaying(v)}
+                  />
+                ))}
+          </div>
+            ) : (
+              <p style={{ opacity: 0.6 }}>No videos available for this course.</p>
+            )}
+      </div>
+    ))}
         </div>
       </div>
     </div>

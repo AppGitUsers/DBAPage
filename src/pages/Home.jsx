@@ -103,6 +103,13 @@ function TestimonialSlider() {
 function HeroAuthPanel({ user, profile, loading, profileLoading }) {
   // While auth or profile is resolving, show a neutral skeleton
   // This prevents the 1-second flash of AuthForms before profile arrives
+
+  const allCourseNames = profile
+  ? [
+      profile.course,
+      ...(profile.student_courses?.map(sc => sc.courses.name) || [])
+    ]
+  : []
   if (loading || (user && profileLoading)) {
     return (
       <div className="hero-auth-skeleton">
@@ -121,7 +128,15 @@ function HeroAuthPanel({ user, profile, loading, profileLoading }) {
           <i className="fas fa-user-circle" />
         </div>
         <h3>Welcome back, {profile.name?.split(' ')[0]}!</h3>
-        <p>Enrolled in: <strong>{profile.course}</strong></p>
+        <p>Enrolled in:   <strong>
+            {allCourseNames.map((course, index) => (
+              <span key={index}>
+                {course}
+                {index < allCourseNames.length - 1 && ', '}
+              </span>
+            ))}
+          </strong>
+        </p>
         {profile.approved ? (
           <Link to="/dashboard" className="btn btn-primary" style={{ width: '100%', marginTop: 16 }}>
             <i className="fas fa-play" /> Go to My Videos
@@ -143,6 +158,7 @@ export default function Home() {
   const { user, profile, loading, profileLoading } = useAuth()
   const [contactForm,   setContactForm]   = useState({ name: '', email: '',contact:'', subject: '', message: '' })
   const [contactStatus, setContactStatus] = useState(null)
+
 
   useEffect(() => {
     const btn = document.querySelector('.back-to-top')

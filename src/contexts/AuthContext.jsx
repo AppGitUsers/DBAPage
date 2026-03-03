@@ -7,7 +7,15 @@ async function fetchProfileById(userId) {
   try {
     const { data, error } = await supabase
       .from('profiles')
-      .select('*')
+      .select(`
+        *,
+        student_courses (
+          course_id,
+          courses (
+            name
+          )
+        )
+      `)
       .eq('id', userId)
       .single()
     if (error) {
