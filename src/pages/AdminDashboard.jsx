@@ -847,6 +847,7 @@ function MessagesPanel() {
                   <div className="msg-item-meta">
                     <div className="msg-item-name">{!m.is_read && <span className="unread-dot" />}{m.name}</div>
                     <div className="msg-item-email">{m.email}</div>
+                    <div className="msg-item-email">{m.contact}</div>
                   </div>
                   <div className="msg-item-date">{new Date(m.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}</div>
                 </div>
@@ -861,7 +862,7 @@ function MessagesPanel() {
                 <div className="msg-detail-header">
                   <div>
                     <h2 className="msg-detail-subject">{selected.subject || '(No subject)'}</h2>
-                    <div className="msg-detail-from"><strong>{selected.name}</strong><span className="msg-detail-email">&lt;{selected.email}&gt;</span></div>
+                    <div className="msg-detail-from"><strong>{selected.name}</strong><span className="msg-detail-email">&lt;{selected.email}  ,  {selected.contact}&gt;</span></div>
                     <div className="msg-detail-time">{new Date(selected.created_at).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</div>
                   </div>
                   <div className="msg-detail-actions">
