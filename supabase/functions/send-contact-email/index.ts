@@ -7,19 +7,24 @@ const corsHeaders = {
 
 Deno.serve(async (req) => {
 
-  // Handle preflight request
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders })
   }
 
   try {
 
+    console.log("Function triggered")
+
     const body = await req.json()
     const { name, email, contact, subject, message } = body
 
+    console.log("Received body:", body)
+
     const SENDGRID_API_KEY = Deno.env.get("SENDGRID_API_KEY")
 
-    await fetch("https://api.sendgrid.com/v3/mail/send", {
+    console.log("API Key present:", !!SENDGRID_API_KEY)
+
+    const sgResponse = await fetch("https://api.sendgrid.com/v3/mail/send", {
       method: "POST",
       headers: {
         "Authorization": `Bearer ${SENDGRID_API_KEY}`,
@@ -32,7 +37,7 @@ Deno.serve(async (req) => {
           }
         ],
         from: {
-          email: "maruthesh12131@gmail.com"
+          email: "piruththiviraja@tesdbacademy.com"
         },
         subject: "New Contact Message",
         content: [
@@ -52,6 +57,11 @@ ${message}
       })
     })
 
+    console.log("SendGrid status:", sgResponse.status)
+
+    const responseText = await sgResponse.text()
+    console.log("SendGrid response:", responseText)
+
     return new Response(
       JSON.stringify({ success: true }),
       {
@@ -63,6 +73,8 @@ ${message}
     )
 
   } catch (err) {
+
+    console.error("ERROR:", err)
 
     return new Response(
       JSON.stringify({ error: String(err) }),
