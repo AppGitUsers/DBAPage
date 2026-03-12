@@ -4,7 +4,6 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import AuthForms from '../components/AuthForms'
 import './Home.css'
-
 const FAQS = [
   { q: 'What is Oracle DBA training?', a: 'Our Oracle DBA training covers database installation, configuration, performance tuning, backup & recovery, security, and cloud solutions. Suitable for beginners and experienced professionals.' },
   { q: 'How are the sessions conducted?', a: 'Sessions are conducted online via video conferencing with live demonstrations, hands-on labs, and real-world scenarios. Recordings are provided for review.' },
@@ -167,18 +166,63 @@ export default function Home() {
     return () => window.removeEventListener('scroll', onScroll)
   }, [])
 
-  const handleContact = async (e) => {
-    e.preventDefault()
-    setContactStatus('sending')
-    try {
-      const { error } = await supabase.from('contact_messages').insert([contactForm])
-      if (error) throw error
-      setContactStatus('success')
-      setContactForm({ name: '', email: '',contact:'', subject: '', message: '' })
-    } catch {
-      setContactStatus('error')
-    }
+  // const handleContact = async (e) => {
+  //   e.preventDefault()
+  //   setContactStatus('sending')
+  //   try {
+  //     const { error } = await supabase.from('contact_messages').insert([contactForm])
+  //     if (error) throw error
+  //     console.log(import.meta.env.VITE_SUPABASE_ANON_KEY);
+  //      await fetch("http://127.0.0.1:54321/functions/v1/send-contact-email", {
+  //     method: "POST",
+  //     headers: {
+  //       "Content-Type": "application/json",
+  //       "Authorization": `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+  //       "apikey": import.meta.env.VITE_SUPABASE_ANON_KEY
+  //     },
+  //     body: JSON.stringify(contactForm)
+  //   })
+  //     setContactStatus('success')
+  //     setContactForm({ name: '', email: '',contact:'', subject: '', message: '' })
+  //     //Changes done here
+      
+  //   } catch {
+  //     setContactStatus('error')
+  //   }
+  // }
+const handleContact = async (e) => {
+  e.preventDefault()
+  setContactStatus('sending')
+
+  try {
+
+    const { error } =
+      await supabase.from('contact_messages').insert([contactForm])
+
+    if (error) throw error
+
+    const { data, error: fnError } =
+      await supabase.functions.invoke('send-contact-email', {
+        body: contactForm
+      })
+
+    if (fnError) throw fnError
+
+    setContactStatus('success')
+
+    setContactForm({
+      name: '',
+      email: '',
+      contact: '',
+      subject: '',
+      message: ''
+    })
+
+  } catch (err) {
+    console.error(err)
+    setContactStatus('error')
   }
+}
 
   return (
     <div className="home">
