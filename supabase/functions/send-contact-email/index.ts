@@ -33,11 +33,11 @@ Deno.serve(async (req) => {
       body: JSON.stringify({
         personalizations: [
           {
-            to: [{ email: import.meta.env.VITE_TO_MAIL}]
+            to: [{ email: "maruthesh12131@gmail.com" }]
           }
         ],
         from: {
-          email: import.meta.env.VITE_FROM_MAIL
+          email: "piruththiviraja@tesdbacademy.com"
         },
         subject: "New Contact Message",
         content: [
