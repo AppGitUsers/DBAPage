@@ -2,11 +2,16 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.password_validation import validate_password
 from rest_framework import serializers
 
+from .models import COURSE_CHOICES
+
 User = get_user_model()
 
 
 class RegisterSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, validators=[validate_password])
+    # course is blank=True/null=True on the model (so staff accounts don't need
+    # one), but registration must still require a real student to pick one.
+    course = serializers.ChoiceField(choices=COURSE_CHOICES)
 
     class Meta:
         model = User
