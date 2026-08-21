@@ -7,6 +7,7 @@ class Course(models.Model):
     description = models.TextField(blank=True, null=True)
     active = models.BooleanField(default=True)
     sort_order = models.IntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         ordering = ["sort_order"]
@@ -20,6 +21,7 @@ class StudentCourse(models.Model):
         settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="student_courses"
     )
     course = models.ForeignKey(Course, on_delete=models.CASCADE, related_name="enrollments")
+    created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         unique_together = ("student", "course")
