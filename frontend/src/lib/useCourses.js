@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
-import { supabase } from '../lib/supabase'
+import { apiGet } from './apiClient'
 
-// Fallback list if DB fetch fails or table is empty
+// Fallback list if API fetch fails or the course list is empty
 export const FALLBACK_COURSES = [
   'Oracle Developer',
   'Oracle DBA',
@@ -16,17 +16,14 @@ export function useCourses() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    supabase
-      .from('courses')
-      .select('name')
-      .eq('active', true)
-      .order('sort_order', { ascending: true })
-      .then(({ data, error }) => {
-        if (!error && data && data.length > 0) {
-          setCourses(data.map(c => c.name))
+    apiGet('/api/courses/')
+      .then((data) => {
+        if (data && data.length > 0) {
+          setCourses(data.map((c) => c.name))
         }
-        setLoading(false)
       })
+      .catch(() => {})
+      .finally(() => setLoading(false))
   }, [])
 
   return { COURSES, loading }

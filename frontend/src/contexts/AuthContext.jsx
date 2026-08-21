@@ -1,83 +1,75 @@
 import { createContext, useContext, useEffect, useState } from 'react'
-import { supabase } from '../lib/supabase'
+import { apiGet, apiPost, ApiError, clearToken, getToken, setToken } from '../lib/apiClient'
 
 const AuthContext = createContext(null)
 
-async function fetchProfileById(userId) {
-  try {
-    const { data, error } = await supabase
-      .from('profiles')
-      .select(`
-        *,
-        student_courses (
-          course_id,
-          courses (
-            name
-          )
-        )
-      `)
-      .eq('id', userId)
-      .single()
-    if (error) {
-      console.warn('[AuthContext] profile fetch error:', error.message)
-      return null
-    }
-    return data
-  } catch (err) {
-    console.warn('[AuthContext] profile fetch threw:', err.message)
-    return null
-  }
-}
-
 export function AuthProvider({ children }) {
-  const [user,           setUser]           = useState(undefined) // undefined = not yet known
-  const [profile,        setProfile]        = useState(null)
-  const [profileLoading, setProfileLoading] = useState(false)    // true while DB fetch in-flight
+  const [user, setUser] = useState(undefined) // undefined = not yet known
+  const [profile, setProfile] = useState(null)
+  const [profileLoading, setProfileLoading] = useState(false)
 
-  // loading = auth event hasn't fired yet at all
+  // loading = we haven't resolved whether there's a session yet
   const loading = user === undefined
 
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, session) => {
-        if (session?.user) {
-          // 1. Set user synchronously → loading becomes false immediately
-          setUser(session.user)
-          // 2. Mark profile as loading so UI can show skeleton instead of wrong state
-          setProfileLoading(true)
-          // 3. Fetch profile in background
-          fetchProfileById(session.user.id).then(prof => {
-            setProfile(prof)
-            setProfileLoading(false)
-          })
-        } else {
-          setUser(null)
-          setProfile(null)
-          setProfileLoading(false)
-        }
-      }
-    )
-
-    return () => subscription.unsubscribe()
+    const token = getToken()
+    if (!token) {
+      setUser(null)
+      setProfile(null)
+      return
+    }
+    setProfileLoading(true)
+    apiGet('/api/auth/me/')
+      .then((me) => {
+        setUser(me)
+        setProfile(me)
+      })
+      .catch(() => {
+        clearToken()
+        setUser(null)
+        setProfile(null)
+      })
+      .finally(() => setProfileLoading(false))
   }, [])
 
-  const fetchProfile = async (userId) => {
-    setProfileLoading(true)
-    const prof = await fetchProfileById(userId)
-    setProfile(prof)
-    setProfileLoading(false)
-    return prof
+  const login = async (email, password) => {
+    try {
+      const { token, user: me } = await apiPost('/api/auth/login/', { email, password })
+      setToken(token)
+      setUser(me)
+      setProfile(me)
+      return { ok: true }
+    } catch (err) {
+      const awaitingApproval = err instanceof ApiError && err.status === 403
+      return {
+        ok: false,
+        awaitingApproval,
+        message: awaitingApproval
+          ? 'Your account is awaiting admin approval. Please wait.'
+          : err.message || 'Login failed. Please check your credentials.',
+      }
+    }
+  }
+
+  const register = async ({ name, email, password, course }) => {
+    try {
+      await apiPost('/api/auth/register/', { name, email, password, course })
+      return { ok: true }
+    } catch (err) {
+      return { ok: false, message: err.message || 'Registration failed. Please try again.' }
+    }
   }
 
   const signOut = async () => {
-    await supabase.auth.signOut().catch(() => {})
+    await apiPost('/api/auth/logout/').catch(() => {})
+    clearToken()
     setUser(null)
     setProfile(null)
     setProfileLoading(false)
   }
 
   return (
-    <AuthContext.Provider value={{ user, profile, loading, profileLoading, signOut, fetchProfile }}>
+    <AuthContext.Provider value={{ user, profile, loading, profileLoading, login, register, signOut }}>
       {children}
     </AuthContext.Provider>
   )

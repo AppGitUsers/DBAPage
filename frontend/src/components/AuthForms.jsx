@@ -1,24 +1,12 @@
 import { useState } from 'react'
-import { supabase } from '../lib/supabase'
+import { useAuth } from '../contexts/AuthContext'
 import './AuthForms.css'
 import { useCourses } from '../lib/useCourses'
-// const COURSES = [
-//   'Oracle Developer',
-//   'Oracle DBA',
-//   'PostgreSQL Developer',
-//   'PostgreSQL DBA',
-//   'Linux',
-//   'Environment',
-// ]
-
-
-
 
 export default function AuthForms() {
   const [tab, setTab] = useState('login')
-  const {COURSES,loading} = useCourses();
-  console.log(COURSES)
-  console.log(loading)
+  const { COURSES } = useCourses()
+  const { login, register } = useAuth()
   /* ── LOGIN STATE ── */
   const [loginData, setLoginData]     = useState({ email: '', password: '' })
   const [loginStatus, setLoginStatus] = useState(null) // null | 'loading' | error string
@@ -38,40 +26,8 @@ export default function AuthForms() {
     e.preventDefault()
     setLoginStatus('loading')
 
-    try {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email:    loginData.email,
-        password: loginData.password,
-      })
-
-      if (error) throw error
-      if (!data?.user) throw new Error('Login failed — no user returned.')
-
-      // Check approval BEFORE allowing the session to persist
-      const { data: prof, error: profErr } = await supabase
-        .from('profiles')
-        .select('approved')
-        .eq('id', data.user.id)
-        .single()
-
-      if (profErr) throw new Error('Could not fetch your profile. Please try again.')
-
-      if (!prof?.approved) {
-        // Sign out immediately so session doesn't linger
-        await supabase.auth.signOut()
-        setLoginStatus('Your account is awaiting admin approval. Please wait.')
-        return
-      }
-
-      // ✅ Approved — AuthContext's onAuthStateChange listener will pick up the
-      // session automatically and set user + profile. No manual fetchProfile needed.
-      setLoginStatus(null)
-
-    } catch (err) {
-      // If we threw after a successful signIn, make sure we're signed out
-      await supabase.auth.signOut().catch(() => {})
-      setLoginStatus(err.message || 'Login failed. Please check your credentials.')
-    }
+    const result = await login(loginData.email, loginData.password)
+    setLoginStatus(result.ok ? null : result.message)
   }
 
   /* ─── REGISTER ─── */
@@ -85,38 +41,8 @@ export default function AuthForms() {
 
     setRegStatus('loading')
 
-    try {
-      // 1. Create Supabase Auth user
-      const { data, error } = await supabase.auth.signUp({
-        email:    regData.email,
-        password: regData.password,
-      })
-
-      if (error) throw error
-      if (!data?.user?.id) throw new Error('Registration failed — no user ID returned.')
-
-      // 2. Insert profile row (approved = false)
-      const { error: profErr } = await supabase
-        .from('profiles')
-        .insert([{
-          id:       data.user.id,
-          name:     regData.name,
-          email:    regData.email,
-          course:   regData.course,
-          approved: false,
-        }])
-
-      if (profErr) throw profErr
-
-      // 3. Sign out immediately — they need admin approval before accessing anything
-      await supabase.auth.signOut()
-
-      setRegStatus('success')
-
-    } catch (err) {
-      await supabase.auth.signOut().catch(() => {})
-      setRegStatus(err.message || 'Registration failed. Please try again.')
-    }
+    const result = await register(regData)
+    setRegStatus(result.ok ? 'success' : result.message)
   }
 
   /* ── RENDER ── */

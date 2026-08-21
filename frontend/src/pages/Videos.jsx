@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { supabase } from '../lib/supabase'
+import { apiGet } from '../lib/apiClient'
 import './Videos.css'
 
 const DEMO_VIDEOS = [
@@ -25,11 +25,7 @@ export default function Videos() {
 
   const fetchPublicVideos = async () => {
     try {
-      const { data, error } = await supabase
-        .from('videos')
-        .select('*')
-        .eq('is_public', true)
-        .order('created_at', { ascending: false })
+      const data = await apiGet('/api/videos/public/')
       setVideos(data?.length ? data : DEMO_VIDEOS)
     } catch {
       setVideos(DEMO_VIDEOS)

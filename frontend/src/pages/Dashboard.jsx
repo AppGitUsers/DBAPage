@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { supabase } from '../lib/supabase'
+import { apiGet } from '../lib/apiClient'
 import { useAuth } from '../contexts/AuthContext'
 import './Dashboard.css'
 
@@ -162,24 +162,14 @@ export default function Dashboard() {
   useEffect(() => {
     if (!profile?.approved || hasFetched.current) return
     hasFetched.current = true
-    loadVideos(profile.course)
+    loadVideos()
   }, [profile])
 
-  const loadVideos = async (course) => {
+  const loadVideos = async () => {
     setFetching(true)
     setFetchErr(null)
     try {
-
-
-      console.log("all courses "+allCourseNames)
-      console.log("type:", typeof allCourseNames)
-
-      const { data, error } = await supabase
-        .from('videos')
-        .select('*')
-        .in('course', allCourseNames)
-        .order('created_at', { ascending: false })
-      if (error) throw error
+      const data = await apiGet('/api/videos/mine/')
       setVideos(data || [])
     } catch (err) {
       setFetchErr(err.message || 'Failed to load videos.')
@@ -282,7 +272,7 @@ export default function Dashboard() {
               <h3>Couldn't load videos</h3>
               <p>{fetchErr}</p>
               <button className="btn btn-primary" style={{ marginTop: 16 }}
-                onClick={() => { hasFetched.current = false; loadVideos(profile.course) }}>
+                onClick={() => { hasFetched.current = false; loadVideos() }}>
                 <i className="fas fa-sync-alt" /> Retry
               </button>
             </div>

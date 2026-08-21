@@ -1,30 +1,38 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { supabase } from '../lib/supabase'
+import { apiGet, apiPost, apiPatch, apiPut, apiDelete } from '../lib/apiClient'
 import './AdminDashboard.css'
 
-const ADMIN_EMAIL    = import.meta.env.VITE_ADMIN_EMAIL
-const ADMIN_PASSWORD = import.meta.env.VITE_ADMIN_PASSWORD
-
-/* ── Load courses from DB (used inside admin instead of the hook, for easier refresh) ── */
-async function fetchCoursesFromDB() {
-  const { data, error } = await supabase
-    .from('courses')
-    .select('*')
-    .order('sort_order', { ascending: true })
-  if (error) throw error
-  return data || []
-}
+// The admin panel keeps its own session, separate from the student-facing
+// AuthContext session — logging into /admin must not affect (or be affected
+// by) whatever student account might be logged into the rest of the site.
+const ADMIN_TOKEN_KEY = 'dbapage_admin_token'
 
 /* ─────────────────────────────────────────────────────────────────────────────
    MAIN
 ───────────────────────────────────────────────────────────────────────────── */
 export default function AdminDashboard() {
-  const [authed, setAuthed] = useState(false)
-  const [tab,    setTab]    = useState('candidates')
+  const [adminToken, setAdminToken] = useState(() => localStorage.getItem(ADMIN_TOKEN_KEY))
+  const [tab, setTab] = useState('candidates')
   const navigate = useNavigate()
 
-  if (!authed) return <AdminLogin onLogin={() => setAuthed(true)} />
+  if (!adminToken) {
+    return (
+      <AdminLogin
+        onLogin={(token) => {
+          localStorage.setItem(ADMIN_TOKEN_KEY, token)
+          setAdminToken(token)
+        }}
+      />
+    )
+  }
+
+  const handleLogout = async () => {
+    await apiPost('/api/auth/logout/', undefined, adminToken).catch(() => {})
+    localStorage.removeItem(ADMIN_TOKEN_KEY)
+    setAdminToken(null)
+    navigate('/')
+  }
 
   return (
     <div className="admin-root">
@@ -48,16 +56,16 @@ export default function AdminDashboard() {
           </button>
         </nav>
         <div className="admin-sidebar-footer">
-          <button className="admin-logout" onClick={() => { setAuthed(false); navigate('/') }}>
+          <button className="admin-logout" onClick={handleLogout}>
             <i className="fas fa-sign-out-alt" /> Exit Admin
           </button>
         </div>
       </aside>
       <main className="admin-main">
-        {tab === 'candidates' && <CandidatesPanel />}
-        {tab === 'videos'     && <VideosPanel />}
-        {tab === 'courses'    && <CoursesPanel />}
-        {tab === 'messages'   && <MessagesPanel />}
+        {tab === 'candidates' && <CandidatesPanel token={adminToken} />}
+        {tab === 'videos'     && <VideosPanel token={adminToken} />}
+        {tab === 'courses'    && <CoursesPanel token={adminToken} />}
+        {tab === 'messages'   && <MessagesPanel token={adminToken} />}
       </main>
     </div>
   )
@@ -72,13 +80,22 @@ function AdminLogin({ onLogin }) {
   const [error, setError]       = useState(null)
   const [loading, setLoading]   = useState(false)
 
-  const handleSubmit = (e) => {
-    e.preventDefault(); setLoading(true); setError(null)
-    setTimeout(() => {
-      if (email === ADMIN_EMAIL && password === ADMIN_PASSWORD) { onLogin() }
-      else { setError('Invalid admin credentials.') }
+  const handleSubmit = async (e) => {
+    e.preventDefault()
+    setLoading(true)
+    setError(null)
+    try {
+      const { token, user } = await apiPost('/api/auth/login/', { email, password })
+      if (!user.is_staff) {
+        setError('This account does not have admin access.')
+        return
+      }
+      onLogin(token)
+    } catch (err) {
+      setError(err.message || 'Invalid admin credentials.')
+    } finally {
       setLoading(false)
-    }, 400)
+    }
   }
 
   return (
@@ -113,7 +130,7 @@ function AdminLogin({ onLogin }) {
 /* ─────────────────────────────────────────────────────────────────────────────
    CANDIDATES PANEL
 ───────────────────────────────────────────────────────────────────────────── */
-function CandidatesPanel() {
+function CandidatesPanel({ token }) {
   const [candidates, setCandidates] = useState([])
   const [loading,    setLoading]    = useState(true)
   const [filter,     setFilter]     = useState('all')
@@ -127,40 +144,38 @@ function CandidatesPanel() {
 
   const fetchCandidates = useCallback(async () => {
     setLoading(true)
-    const { data, error } = await supabase
-      .from('profiles')
-      .select(`
-        *,
-        student_courses (
-          course_id,
-          courses (
-            id,
-            name
-          )
-        )
-      `)
-      .order('created_at', { ascending: false })
-    if (!error) setCandidates(data || [])
-    setLoading(false)
-  }, [])
+    try {
+      const data = await apiGet('/api/admin/candidates/', token)
+      setCandidates(data || [])
+    } catch {
+      showToast('Failed to load candidates.', 'error')
+    } finally {
+      setLoading(false)
+    }
+  }, [token])
 
   useEffect(() => { fetchCandidates() }, [fetchCandidates])
 
   const toggleApproval = async (candidate) => {
     const newVal = !candidate.approved
-    const { error } = await supabase.from('profiles').update({ approved: newVal }).eq('id', candidate.id)
-    if (error) { showToast('Failed to update approval status.', 'error') }
-    else {
+    try {
+      await apiPatch(`/api/admin/candidates/${candidate.id}/`, { approved: newVal }, token)
       setCandidates(prev => prev.map(c => c.id === candidate.id ? { ...c, approved: newVal } : c))
       showToast(newVal ? `✓ ${candidate.name} approved.` : `${candidate.name} revoked.`, newVal ? 'success' : 'warning')
+    } catch {
+      showToast('Failed to update approval status.', 'error')
     }
   }
 
   const deleteCandidate = async (id) => {
     setDeleting(id)
-    const { error } = await supabase.from('profiles').delete().eq('id', id)
-    if (error) { showToast('Failed to delete candidate.', 'error') }
-    else { setCandidates(prev => prev.filter(c => c.id !== id)); showToast('Candidate removed.') }
+    try {
+      await apiDelete(`/api/admin/candidates/${id}/`, token)
+      setCandidates(prev => prev.filter(c => c.id !== id))
+      showToast('Candidate removed.')
+    } catch {
+      showToast('Failed to delete candidate.', 'error')
+    }
     setDeleting(null); setConfirmDel(null)
   }
 
@@ -173,7 +188,7 @@ function CandidatesPanel() {
 
   const pending  = candidates.filter(c => !c.approved).length
   const approved = candidates.filter(c =>  c.approved).length
- 
+
 
   return (
     <div className="admin-panel">
@@ -219,13 +234,11 @@ function CandidatesPanel() {
                       )}
                       {c.student_courses?.length > 0 &&
                         c.student_courses.map(sc => (
-                          <div>
-                          <span key={sc.course_id} className="course-tag">
-                            {sc.courses.name} 
-                          </span><br />
-                          
+                          <div key={sc.course_id}>
+                            <span className="course-tag">
+                              {sc.courses.name}
+                            </span><br />
                           </div>
-                          
                         ))}
                       {!c.course && (!c.student_courses || c.student_courses.length === 0) && '—'}
                   </td>
@@ -250,7 +263,7 @@ function CandidatesPanel() {
                     </div>
                   </td>
                 </tr>
-                
+
               ))}
             </tbody>
           </table>
@@ -259,6 +272,7 @@ function CandidatesPanel() {
       {editCourses && (
         <AssignCoursesModal
           student={editCourses}
+          token={token}
           onClose={() => setEditCourses(null)}
           onUpdated={fetchCandidates}
         />
@@ -277,9 +291,9 @@ function CandidatesPanel() {
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
-   COURSES PANEL  ← NEW
+   COURSES PANEL
 ───────────────────────────────────────────────────────────────────────────── */
-function CoursesPanel() {
+function CoursesPanel({ token }) {
   const [courses,    setCourses]    = useState([])
   const [loading,    setLoading]    = useState(true)
   const [toast,      setToast]      = useState(null)
@@ -292,19 +306,25 @@ function CoursesPanel() {
 
   const fetchCourses = useCallback(async () => {
     setLoading(true)
-    const { data, error } = await supabase.from('courses').select('*').order('sort_order', { ascending: true })
-    if (!error) setCourses(data || [])
-    setLoading(false)
-  }, [])
+    try {
+      const data = await apiGet('/api/admin/courses/', token)
+      setCourses(data || [])
+    } catch {
+      showToast('Failed to load courses.', 'error')
+    } finally {
+      setLoading(false)
+    }
+  }, [token])
 
   useEffect(() => { fetchCourses() }, [fetchCourses])
 
   const toggleActive = async (course) => {
-    const { error } = await supabase.from('courses').update({ active: !course.active }).eq('id', course.id)
-    if (error) { showToast('Failed to update.', 'error') }
-    else {
+    try {
+      await apiPatch(`/api/admin/courses/${course.id}/`, { active: !course.active }, token)
       setCourses(prev => prev.map(c => c.id === course.id ? { ...c, active: !c.active } : c))
       showToast(course.active ? `"${course.name}" hidden from students.` : `"${course.name}" is now active.`, course.active ? 'warning' : 'success')
+    } catch {
+      showToast('Failed to update.', 'error')
     }
   }
 
@@ -313,16 +333,19 @@ function CoursesPanel() {
     const swapIdx = idx + direction
     if (swapIdx < 0 || swapIdx >= courses.length) return
     const other = courses[swapIdx]
-    await supabase.from('courses').update({ sort_order: other.sort_order }).eq('id', course.id)
-    await supabase.from('courses').update({ sort_order: course.sort_order }).eq('id', other.id)
+    await apiPost(`/api/admin/courses/${course.id}/reorder/`, { swap_with: other.id }, token)
     fetchCourses()
   }
 
   const deleteCourse = async (id) => {
     setDeleting(id)
-    const { error } = await supabase.from('courses').delete().eq('id', id)
-    if (error) { showToast('Failed to delete course.', 'error') }
-    else { setCourses(prev => prev.filter(c => c.id !== id)); showToast('Course deleted.') }
+    try {
+      await apiDelete(`/api/admin/courses/${id}/`, token)
+      setCourses(prev => prev.filter(c => c.id !== id))
+      showToast('Course deleted.')
+    } catch {
+      showToast('Failed to delete course.', 'error')
+    }
     setDeleting(null); setConfirmDel(null)
   }
 
@@ -413,6 +436,7 @@ function CoursesPanel() {
       {showForm && (
         <CourseFormModal
           course={editCourse}
+          token={token}
           nextOrder={courses.length > 0 ? Math.max(...courses.map(c => c.sort_order)) + 1 : 1}
           onClose={() => { setShowForm(false); setEditCourse(null) }}
           onSaved={handleSaved}
@@ -433,7 +457,7 @@ function CoursesPanel() {
   )
 }
 
-function CourseFormModal({ course, nextOrder, onClose, onSaved }) {
+function CourseFormModal({ course, token, nextOrder, onClose, onSaved }) {
   const isEdit = !!course
   const [form, setForm] = useState({
     name:        course?.name        || '',
@@ -453,15 +477,10 @@ function CourseFormModal({ course, nextOrder, onClose, onSaved }) {
       sort_order:  Number(form.sort_order),
     }
     try {
-      if (isEdit) {
-        const { data, error } = await supabase.from('courses').update(payload).eq('id', course.id).select().single()
-        if (error) throw error
-        onSaved(data)
-      } else {
-        const { data, error } = await supabase.from('courses').insert([payload]).select().single()
-        if (error) throw error
-        onSaved(data)
-      }
+      const saved = isEdit
+        ? await apiPatch(`/api/admin/courses/${course.id}/`, payload, token)
+        : await apiPost('/api/admin/courses/', payload, token)
+      onSaved(saved)
     } catch (err) { setError(err.message) }
     finally { setSaving(false) }
   }
@@ -517,7 +536,7 @@ function CourseFormModal({ course, nextOrder, onClose, onSaved }) {
 /* ─────────────────────────────────────────────────────────────────────────────
    VIDEOS PANEL
 ───────────────────────────────────────────────────────────────────────────── */
-function VideosPanel() {
+function VideosPanel({ token }) {
   const [videos,     setVideos]     = useState([])
   const [courses,    setCourses]    = useState([])
   const [loading,    setLoading]    = useState(true)
@@ -533,30 +552,41 @@ function VideosPanel() {
 
   const fetchAll = useCallback(async () => {
     setLoading(true)
-    const [vRes, cRes] = await Promise.all([
-      supabase.from('videos').select('*').order('created_at', { ascending: false }),
-      supabase.from('courses').select('name').eq('active', true).order('sort_order', { ascending: true }),
-    ])
-    if (!vRes.error) setVideos(vRes.data || [])
-    if (!cRes.error) setCourses(cRes.data?.map(c => c.name) || [])
-    setLoading(false)
-  }, [])
+    try {
+      const [vData, cData] = await Promise.all([
+        apiGet('/api/admin/videos/', token),
+        apiGet('/api/courses/', token),
+      ])
+      setVideos(vData || [])
+      setCourses((cData || []).map(c => c.name))
+    } catch {
+      showToast('Failed to load videos.', 'error')
+    } finally {
+      setLoading(false)
+    }
+  }, [token])
 
   useEffect(() => { fetchAll() }, [fetchAll])
 
   const deleteVideo = async (id) => {
     setDeleting(id)
-    const { error } = await supabase.from('videos').delete().eq('id', id)
-    if (error) { showToast('Failed to delete video.', 'error') }
-    else { setVideos(prev => prev.filter(v => v.id !== id)); showToast('Video deleted.') }
+    try {
+      await apiDelete(`/api/admin/videos/${id}/`, token)
+      setVideos(prev => prev.filter(v => v.id !== id))
+      showToast('Video deleted.')
+    } catch {
+      showToast('Failed to delete video.', 'error')
+    }
     setDeleting(null); setConfirmDel(null)
   }
 
   const togglePublic = async (video) => {
-    const { error } = await supabase.from('videos').update({ is_public: !video.is_public }).eq('id', video.id)
-    if (!error) {
+    try {
+      await apiPatch(`/api/admin/videos/${video.id}/`, { is_public: !video.is_public }, token)
       setVideos(prev => prev.map(v => v.id === video.id ? { ...v, is_public: !v.is_public } : v))
       showToast(!video.is_public ? 'Video is now public.' : 'Video is now private.')
+    } catch {
+      showToast('Failed to update visibility.', 'error')
     }
   }
 
@@ -639,7 +669,7 @@ function VideosPanel() {
           </table>
         </div>
       )}
-      {showForm && <VideoFormModal video={editVideo} courses={courses} onClose={() => { setShowForm(false); setEditVideo(null) }} onSaved={handleSaved} />}
+      {showForm && <VideoFormModal video={editVideo} courses={courses} token={token} onClose={() => { setShowForm(false); setEditVideo(null) }} onSaved={handleSaved} />}
       {confirmDel && (
         <ConfirmModal
           icon="fa-trash" title="Delete Video?"
@@ -656,7 +686,7 @@ function VideosPanel() {
 /* ─────────────────────────────────────────────────────────────────────────────
    VIDEO FORM MODAL
 ───────────────────────────────────────────────────────────────────────────── */
-function VideoFormModal({ video, courses, onClose, onSaved }) {
+function VideoFormModal({ video, courses, token, onClose, onSaved }) {
   const isEdit = !!video
   const [form, setForm] = useState({
     title: video?.title || '', description: video?.description || '',
@@ -672,13 +702,10 @@ function VideoFormModal({ video, courses, onClose, onSaved }) {
     e.preventDefault(); setError(null); setSaving(true)
     const payload = { title: form.title.trim(), description: form.description.trim() || null, video_url: form.video_url.trim(), course: form.course, duration: form.duration.trim() || null, is_public: form.is_public, thumbnail_url: form.thumbnail_url.trim() || null }
     try {
-      if (isEdit) {
-        const { data, error } = await supabase.from('videos').update(payload).eq('id', video.id).select().single()
-        if (error) throw error; onSaved(data)
-      } else {
-        const { data, error } = await supabase.from('videos').insert([payload]).select().single()
-        if (error) throw error; onSaved(data)
-      }
+      const saved = isEdit
+        ? await apiPatch(`/api/admin/videos/${video.id}/`, payload, token)
+        : await apiPost('/api/admin/videos/', payload, token)
+      onSaved(saved)
     } catch (err) { setError(err.message) } finally { setSaving(false) }
   }
 
@@ -755,7 +782,7 @@ function VideoFormModal({ video, courses, onClose, onSaved }) {
 /* ─────────────────────────────────────────────────────────────────────────────
    MESSAGES PANEL
 ───────────────────────────────────────────────────────────────────────────── */
-function MessagesPanel() {
+function MessagesPanel({ token }) {
   const [messages,   setMessages]   = useState([])
   const [loading,    setLoading]    = useState(true)
   const [search,     setSearch]     = useState('')
@@ -770,34 +797,52 @@ function MessagesPanel() {
 
   const fetchMessages = useCallback(async () => {
     setLoading(true)
-    const { data, error } = await supabase.from('contact_messages').select('*').order('created_at', { ascending: false })
-    if (!error) setMessages(data || [])
-    setLoading(false)
-  }, [])
+    try {
+      const data = await apiGet('/api/admin/messages/', token)
+      setMessages(data || [])
+    } catch {
+      showToast('Failed to load messages.', 'error')
+    } finally {
+      setLoading(false)
+    }
+  }, [token])
 
   useEffect(() => { fetchMessages() }, [fetchMessages])
 
   const openMessage = async (msg) => {
     setSelected(msg)
     if (!msg.is_read) {
-      const { error } = await supabase.from('contact_messages').update({ is_read: true }).eq('id', msg.id)
-      if (!error) {
+      try {
+        await apiPatch(`/api/admin/messages/${msg.id}/`, { is_read: true }, token)
         setMessages(prev => prev.map(m => m.id === msg.id ? { ...m, is_read: true } : m))
         setSelected(p => p ? { ...p, is_read: true } : p)
+      } catch {
+        // leave as unread locally if the update failed
       }
     }
   }
 
   const markUnread = async (msg) => {
-    const { error } = await supabase.from('contact_messages').update({ is_read: false }).eq('id', msg.id)
-    if (!error) { setMessages(prev => prev.map(m => m.id === msg.id ? { ...m, is_read: false } : m)); setSelected(null); showToast('Marked as unread.') }
+    try {
+      await apiPatch(`/api/admin/messages/${msg.id}/`, { is_read: false }, token)
+      setMessages(prev => prev.map(m => m.id === msg.id ? { ...m, is_read: false } : m))
+      setSelected(null)
+      showToast('Marked as unread.')
+    } catch {
+      showToast('Failed to update.', 'error')
+    }
   }
 
   const deleteMessage = async (id) => {
     setDeleting(id)
-    const { error } = await supabase.from('contact_messages').delete().eq('id', id)
-    if (error) { showToast('Failed to delete.', 'error') }
-    else { setMessages(prev => prev.filter(m => m.id !== id)); if (selected?.id === id) setSelected(null); showToast('Message deleted.') }
+    try {
+      await apiDelete(`/api/admin/messages/${id}/`, token)
+      setMessages(prev => prev.filter(m => m.id !== id))
+      if (selected?.id === id) setSelected(null)
+      showToast('Message deleted.')
+    } catch {
+      showToast('Failed to delete.', 'error')
+    }
     setDeleting(null); setConfirmDel(null)
   }
 
@@ -926,19 +971,18 @@ function ConfirmModal({ icon, title, message, onCancel, onConfirm, loading, conf
   )
 }
 
-function AssignCoursesModal({ student, onClose, onUpdated }) {
+function AssignCoursesModal({ student, token, onClose, onUpdated }) {
   const [courses, setCourses] = useState([])
   const [selected, setSelected] = useState(
     student.student_courses.map(sc => sc.course_id)
   )
-  const profileCourseName = student?.course;  
+  const profileCourseName = student?.course;
 
   useEffect(() => {
-    supabase.from('courses')
-      .select('*')
-      .eq('active', true)
-      .then(({ data }) => setCourses(data || []))
-  }, [])
+    apiGet('/api/admin/courses/', token)
+      .then(data => setCourses((data || []).filter(c => c.active)))
+      .catch(() => setCourses([]))
+  }, [token])
 
   const toggleCourse = (id) => {
     setSelected(prev =>
@@ -949,22 +993,7 @@ function AssignCoursesModal({ student, onClose, onUpdated }) {
   }
 
   const save = async () => {
-    // delete old
-    await supabase
-      .from('student_courses')
-      .delete()
-      .eq('student_id', student.id)
-
-    // insert new
-    const inserts = selected.map(course_id => ({
-      student_id: student.id,
-      course_id
-    }))
-
-    if (inserts.length > 0) {
-      await supabase.from('student_courses').insert(inserts)
-    }
-
+    await apiPut(`/api/admin/candidates/${student.id}/courses/`, { course_ids: selected }, token)
     onUpdated()
     onClose()
   }
